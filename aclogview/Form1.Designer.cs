@@ -25,6 +25,7 @@
         private void InitializeComponent() {
             this.components = new System.ComponentModel.Container();
             this.splitContainer_Main = new System.Windows.Forms.SplitContainer();
+            this.splitContainer_Top = new System.Windows.Forms.SplitContainer();
             this.listView_Packets = new System.Windows.Forms.ListView();
             this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader5 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
@@ -34,6 +35,14 @@
             this.columnHeader4 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader6 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.HexOpCode = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.listView_CreatedObjects = new System.Windows.Forms.ListView();
+            this.columnHeader8 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.columnHeader9 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.columnHeader10 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.columnHeader11 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.columnHeader12 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.objectsContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.jumpToMessageMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.splitContainer_Bottom = new System.Windows.Forms.SplitContainer();
             this.textBox_PacketData = new System.Windows.Forms.RichTextBox();
             this.treeView_ParsedData = new BufferedTreeView();
@@ -41,6 +50,7 @@
             this.ExpandAll = new System.Windows.Forms.ToolStripMenuItem();
             this.CollapseAll = new System.Windows.Forms.ToolStripMenuItem();
             this.CopyCmd = new System.Windows.Forms.ToolStripMenuItem();
+            this.FindID = new System.Windows.Forms.ToolStripMenuItem();
             this.mainMenu = new System.Windows.Forms.MainMenu(this.components);
             this.menuItem_File = new System.Windows.Forms.MenuItem();
             this.menuItem_Open = new System.Windows.Forms.MenuItem();
@@ -56,6 +66,7 @@
             this.menuItem_ToolHeatmap = new System.Windows.Forms.MenuItem();
             this.menuItem2 = new System.Windows.Forms.MenuItem();
             this.mnuItem_ToolFindOpcodeInFiles = new System.Windows.Forms.MenuItem();
+            this.menuItem_ToolFindTextInFiles = new System.Windows.Forms.MenuItem();
             this.mnuItem_ToolFragDatListTool = new System.Windows.Forms.MenuItem();
             this.menuItem_Help = new System.Windows.Forms.MenuItem();
             this.menuItem_About = new System.Windows.Forms.MenuItem();
@@ -72,10 +83,18 @@
             this.cmdbackward = new System.Windows.Forms.Button();
             this.lblTracker = new System.Windows.Forms.Label();
             this.btnHighlight = new System.Windows.Forms.Button();
+            this.checkBox_ShowObjects = new System.Windows.Forms.CheckBox();
+            this.HighlightMode_comboBox = new System.Windows.Forms.ComboBox();
+            this.label1 = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Main)).BeginInit();
             this.splitContainer_Main.Panel1.SuspendLayout();
             this.splitContainer_Main.Panel2.SuspendLayout();
             this.splitContainer_Main.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Top)).BeginInit();
+            this.splitContainer_Top.Panel1.SuspendLayout();
+            this.splitContainer_Top.Panel2.SuspendLayout();
+            this.splitContainer_Top.SuspendLayout();
+            this.objectsContextMenu.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Bottom)).BeginInit();
             this.splitContainer_Bottom.Panel1.SuspendLayout();
             this.splitContainer_Bottom.Panel2.SuspendLayout();
@@ -96,7 +115,7 @@
             // 
             // splitContainer_Main.Panel1
             // 
-            this.splitContainer_Main.Panel1.Controls.Add(this.listView_Packets);
+            this.splitContainer_Main.Panel1.Controls.Add(this.splitContainer_Top);
             this.splitContainer_Main.Panel1.RightToLeft = System.Windows.Forms.RightToLeft.No;
             // 
             // splitContainer_Main.Panel2
@@ -106,6 +125,25 @@
             this.splitContainer_Main.Size = new System.Drawing.Size(1520, 785);
             this.splitContainer_Main.SplitterDistance = 367;
             this.splitContainer_Main.TabIndex = 0;
+            // 
+            // splitContainer_Top
+            // 
+            this.splitContainer_Top.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.splitContainer_Top.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.splitContainer_Top.Location = new System.Drawing.Point(0, 0);
+            this.splitContainer_Top.Name = "splitContainer_Top";
+            // 
+            // splitContainer_Top.Panel1
+            // 
+            this.splitContainer_Top.Panel1.Controls.Add(this.listView_Packets);
+            // 
+            // splitContainer_Top.Panel2
+            // 
+            this.splitContainer_Top.Panel2.Controls.Add(this.listView_CreatedObjects);
+            this.splitContainer_Top.Panel2Collapsed = true;
+            this.splitContainer_Top.Size = new System.Drawing.Size(1520, 367);
+            this.splitContainer_Top.SplitterDistance = 931;
+            this.splitContainer_Top.TabIndex = 1;
             // 
             // listView_Packets
             // 
@@ -156,7 +194,7 @@
             // columnHeader3
             // 
             this.columnHeader3.Text = "Type";
-            this.columnHeader3.Width = 391;
+            this.columnHeader3.Width = 309;
             // 
             // columnHeader4
             // 
@@ -171,6 +209,68 @@
             // 
             this.HexOpCode.Text = "OpCode";
             this.HexOpCode.Width = 66;
+            // 
+            // listView_CreatedObjects
+            // 
+            this.listView_CreatedObjects.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
+            this.columnHeader8,
+            this.columnHeader9,
+            this.columnHeader10,
+            this.columnHeader11,
+            this.columnHeader12});
+            this.listView_CreatedObjects.ContextMenuStrip = this.objectsContextMenu;
+            this.listView_CreatedObjects.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.listView_CreatedObjects.FullRowSelect = true;
+            this.listView_CreatedObjects.HideSelection = false;
+            this.listView_CreatedObjects.Location = new System.Drawing.Point(0, 0);
+            this.listView_CreatedObjects.MultiSelect = false;
+            this.listView_CreatedObjects.Name = "listView_CreatedObjects";
+            this.listView_CreatedObjects.Size = new System.Drawing.Size(92, 96);
+            this.listView_CreatedObjects.TabIndex = 0;
+            this.listView_CreatedObjects.UseCompatibleStateImageBehavior = false;
+            this.listView_CreatedObjects.View = System.Windows.Forms.View.Details;
+            this.listView_CreatedObjects.VirtualMode = true;
+            this.listView_CreatedObjects.ColumnClick += new System.Windows.Forms.ColumnClickEventHandler(this.listView_CreatedObjects_ColumnClick);
+            this.listView_CreatedObjects.RetrieveVirtualItem += new System.Windows.Forms.RetrieveVirtualItemEventHandler(this.listView_CreatedObjects_RetrieveVirtualItem);
+            // 
+            // columnHeader8
+            // 
+            this.columnHeader8.Text = "#";
+            this.columnHeader8.Width = 50;
+            // 
+            // columnHeader9
+            // 
+            this.columnHeader9.Text = "Object ID";
+            this.columnHeader9.Width = 80;
+            // 
+            // columnHeader10
+            // 
+            this.columnHeader10.Text = "Name";
+            this.columnHeader10.Width = 184;
+            // 
+            // columnHeader11
+            // 
+            this.columnHeader11.Text = "WCID";
+            this.columnHeader11.Width = 56;
+            // 
+            // columnHeader12
+            // 
+            this.columnHeader12.Text = "Type";
+            this.columnHeader12.Width = 186;
+            // 
+            // objectsContextMenu
+            // 
+            this.objectsContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.jumpToMessageMenuItem});
+            this.objectsContextMenu.Name = "objectsContextMenu";
+            this.objectsContextMenu.Size = new System.Drawing.Size(189, 26);
+            this.objectsContextMenu.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.objectsContextMenu_ItemClicked);
+            // 
+            // jumpToMessageMenuItem
+            // 
+            this.jumpToMessageMenuItem.Name = "jumpToMessageMenuItem";
+            this.jumpToMessageMenuItem.Size = new System.Drawing.Size(188, 22);
+            this.jumpToMessageMenuItem.Text = "&Jump to this message";
             // 
             // splitContainer_Bottom
             // 
@@ -209,35 +309,44 @@
             this.treeView_ParsedData.Size = new System.Drawing.Size(438, 410);
             this.treeView_ParsedData.TabIndex = 0;
             this.treeView_ParsedData.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeView_ParsedData_AfterSelect);
+            this.treeView_ParsedData.NodeMouseClick += new System.Windows.Forms.TreeNodeMouseClickEventHandler(this.treeView_ParsedData_NodeMouseClick);
             // 
             // parsedContextMenu
             // 
             this.parsedContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.ExpandAll,
             this.CollapseAll,
-            this.CopyCmd});
+            this.CopyCmd,
+            this.FindID});
             this.parsedContextMenu.Name = "parsedContextMenu";
-            this.parsedContextMenu.Size = new System.Drawing.Size(137, 70);
+            this.parsedContextMenu.Size = new System.Drawing.Size(184, 92);
+            this.parsedContextMenu.Opening += new System.ComponentModel.CancelEventHandler(this.parsedContextMenu_Opening);
             this.parsedContextMenu.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.parsedContextMenu_ItemClicked);
             // 
             // ExpandAll
             // 
             this.ExpandAll.Name = "ExpandAll";
-            this.ExpandAll.Size = new System.Drawing.Size(136, 22);
+            this.ExpandAll.Size = new System.Drawing.Size(183, 22);
             this.ExpandAll.Text = "&Expand All";
             // 
             // CollapseAll
             // 
             this.CollapseAll.Name = "CollapseAll";
-            this.CollapseAll.Size = new System.Drawing.Size(136, 22);
+            this.CollapseAll.Size = new System.Drawing.Size(183, 22);
             this.CollapseAll.Text = "C&ollapse All";
             // 
             // CopyCmd
             // 
             this.CopyCmd.Name = "CopyCmd";
             this.CopyCmd.ShowShortcutKeys = false;
-            this.CopyCmd.Size = new System.Drawing.Size(136, 22);
+            this.CopyCmd.Size = new System.Drawing.Size(183, 22);
             this.CopyCmd.Text = "&Copy";
+            // 
+            // FindID
+            // 
+            this.FindID.Name = "FindID";
+            this.FindID.Size = new System.Drawing.Size(183, 22);
+            this.FindID.Text = "&Find ID In Object List";
             // 
             // mainMenu
             // 
@@ -314,6 +423,7 @@
             this.menuItem_ToolHeatmap,
             this.menuItem2,
             this.mnuItem_ToolFindOpcodeInFiles,
+            this.menuItem_ToolFindTextInFiles,
             this.mnuItem_ToolFragDatListTool});
             this.menuItem1.Text = "Tools";
             // 
@@ -346,9 +456,15 @@
             this.mnuItem_ToolFindOpcodeInFiles.Text = "Find Opcode In Files";
             this.mnuItem_ToolFindOpcodeInFiles.Click += new System.EventHandler(this.mnuItem_ToolFindOpcodeInFiles_Click);
             // 
+            // menuItem_ToolFindTextInFiles
+            // 
+            this.menuItem_ToolFindTextInFiles.Index = 5;
+            this.menuItem_ToolFindTextInFiles.Text = "Find Text In Files";
+            this.menuItem_ToolFindTextInFiles.Click += new System.EventHandler(this.menuItem_ToolFindTextInFiles_Click);
+            // 
             // mnuItem_ToolFragDatListTool
             // 
-            this.mnuItem_ToolFragDatListTool.Index = 5;
+            this.mnuItem_ToolFragDatListTool.Index = 6;
             this.mnuItem_ToolFragDatListTool.Text = "Frag Dat List Tool";
             this.mnuItem_ToolFragDatListTool.Click += new System.EventHandler(this.mnuItem_ToolFragDatListTool_Click);
             // 
@@ -375,7 +491,7 @@
             // 
             // textBox_Search
             // 
-            this.textBox_Search.Location = new System.Drawing.Point(435, 0);
+            this.textBox_Search.Location = new System.Drawing.Point(617, 0);
             this.textBox_Search.MaxLength = 6;
             this.textBox_Search.Name = "textBox_Search";
             this.textBox_Search.Size = new System.Drawing.Size(165, 20);
@@ -384,7 +500,7 @@
             // 
             // pictureBox_Search
             // 
-            this.pictureBox_Search.Location = new System.Drawing.Point(711, -1);
+            this.pictureBox_Search.Location = new System.Drawing.Point(893, -1);
             this.pictureBox_Search.Name = "pictureBox_Search";
             this.pictureBox_Search.Size = new System.Drawing.Size(20, 20);
             this.pictureBox_Search.TabIndex = 3;
@@ -404,12 +520,12 @@
             // toolStripStatus
             // 
             this.toolStripStatus.Name = "toolStripStatus";
-            this.toolStripStatus.Size = new System.Drawing.Size(94, 17);
-            this.toolStripStatus.Text = "toolStripFilePath";
+            this.toolStripStatus.Size = new System.Drawing.Size(74, 17);
+            this.toolStripStatus.Text = "AC Log View";
             // 
             // checkBox_HideHeaderOnly
             // 
-            this.checkBox_HideHeaderOnly.Location = new System.Drawing.Point(737, 3);
+            this.checkBox_HideHeaderOnly.Location = new System.Drawing.Point(919, 3);
             this.checkBox_HideHeaderOnly.Name = "checkBox_HideHeaderOnly";
             this.checkBox_HideHeaderOnly.Size = new System.Drawing.Size(154, 17);
             this.checkBox_HideHeaderOnly.TabIndex = 7;
@@ -422,7 +538,8 @@
             // 
             this.checkBox_useHighlighting.Checked = true;
             this.checkBox_useHighlighting.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBox_useHighlighting.Location = new System.Drawing.Point(1024, 3);
+            this.checkBox_useHighlighting.Enabled = false;
+            this.checkBox_useHighlighting.Location = new System.Drawing.Point(1206, 3);
             this.checkBox_useHighlighting.Name = "checkBox_useHighlighting";
             this.checkBox_useHighlighting.Size = new System.Drawing.Size(165, 17);
             this.checkBox_useHighlighting.TabIndex = 9;
@@ -435,7 +552,8 @@
             this.checkBoxUseHex.AutoSize = true;
             this.checkBoxUseHex.Checked = true;
             this.checkBoxUseHex.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxUseHex.Location = new System.Drawing.Point(897, 2);
+            this.checkBoxUseHex.Enabled = false;
+            this.checkBoxUseHex.Location = new System.Drawing.Point(1079, 3);
             this.checkBoxUseHex.Name = "checkBoxUseHex";
             this.checkBoxUseHex.Size = new System.Drawing.Size(122, 17);
             this.checkBoxUseHex.TabIndex = 8;
@@ -465,7 +583,7 @@
             // 
             // cmdbackward
             // 
-            this.cmdbackward.Location = new System.Drawing.Point(164, 2);
+            this.cmdbackward.Location = new System.Drawing.Point(164, 1);
             this.cmdbackward.Name = "cmdbackward";
             this.cmdbackward.Size = new System.Drawing.Size(75, 23);
             this.cmdbackward.TabIndex = 3;
@@ -486,7 +604,7 @@
             // btnHighlight
             // 
             this.btnHighlight.Enabled = false;
-            this.btnHighlight.Location = new System.Drawing.Point(606, 0);
+            this.btnHighlight.Location = new System.Drawing.Point(788, 0);
             this.btnHighlight.Name = "btnHighlight";
             this.btnHighlight.Size = new System.Drawing.Size(75, 22);
             this.btnHighlight.TabIndex = 6;
@@ -494,11 +612,44 @@
             this.btnHighlight.UseVisualStyleBackColor = true;
             this.btnHighlight.Click += new System.EventHandler(this.btnHighlight_Click);
             // 
+            // checkBox_ShowObjects
+            // 
+            this.checkBox_ShowObjects.AutoSize = true;
+            this.checkBox_ShowObjects.Enabled = false;
+            this.checkBox_ShowObjects.Location = new System.Drawing.Point(1377, 3);
+            this.checkBox_ShowObjects.Name = "checkBox_ShowObjects";
+            this.checkBox_ShowObjects.Size = new System.Drawing.Size(139, 17);
+            this.checkBox_ShowObjects.TabIndex = 10;
+            this.checkBox_ShowObjects.Text = "Display Created Objects";
+            this.checkBox_ShowObjects.UseVisualStyleBackColor = true;
+            this.checkBox_ShowObjects.CheckedChanged += new System.EventHandler(this.checkBox_ShowObjects_CheckedChanged);
+            // 
+            // HighlightMode_comboBox
+            // 
+            this.HighlightMode_comboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.HighlightMode_comboBox.Location = new System.Drawing.Point(473, 0);
+            this.HighlightMode_comboBox.Name = "HighlightMode_comboBox";
+            this.HighlightMode_comboBox.Size = new System.Drawing.Size(138, 21);
+            this.HighlightMode_comboBox.TabIndex = 0;
+            this.HighlightMode_comboBox.SelectedIndexChanged += new System.EventHandler(this.HighlightMode_comboBox_SelectedIndexChanged);
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(392, 4);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(81, 13);
+            this.label1.TabIndex = 11;
+            this.label1.Text = "Highlight Mode:";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1520, 831);
+            this.Controls.Add(this.label1);
+            this.Controls.Add(this.HighlightMode_comboBox);
+            this.Controls.Add(this.checkBox_ShowObjects);
             this.Controls.Add(this.btnHighlight);
             this.Controls.Add(this.checkBoxUseHex);
             this.Controls.Add(this.lblTracker);
@@ -521,6 +672,11 @@
             this.splitContainer_Main.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Main)).EndInit();
             this.splitContainer_Main.ResumeLayout(false);
+            this.splitContainer_Top.Panel1.ResumeLayout(false);
+            this.splitContainer_Top.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Top)).EndInit();
+            this.splitContainer_Top.ResumeLayout(false);
+            this.objectsContextMenu.ResumeLayout(false);
             this.splitContainer_Bottom.Panel1.ResumeLayout(false);
             this.splitContainer_Bottom.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Bottom)).EndInit();
@@ -584,6 +740,20 @@
         private System.Windows.Forms.MenuItem menuItem_ReOpenAsMessages;
         private System.Windows.Forms.ToolStripMenuItem ExpandAll;
         private System.Windows.Forms.ToolStripMenuItem CollapseAll;
+        private System.Windows.Forms.SplitContainer splitContainer_Top;
+        private System.Windows.Forms.ListView listView_CreatedObjects;
+        private System.Windows.Forms.ColumnHeader columnHeader8;
+        private System.Windows.Forms.ColumnHeader columnHeader9;
+        private System.Windows.Forms.ColumnHeader columnHeader10;
+        private System.Windows.Forms.ColumnHeader columnHeader11;
+        private System.Windows.Forms.CheckBox checkBox_ShowObjects;
+        private System.Windows.Forms.ColumnHeader columnHeader12;
+        private System.Windows.Forms.ComboBox HighlightMode_comboBox;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.MenuItem menuItem_ToolFindTextInFiles;
+        private System.Windows.Forms.ContextMenuStrip objectsContextMenu;
+        private System.Windows.Forms.ToolStripMenuItem jumpToMessageMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem FindID;
     }
 }
 

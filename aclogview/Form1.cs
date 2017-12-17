@@ -7,6 +7,7 @@ using System.Data;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -18,6 +19,7 @@ namespace aclogview
     public partial class Form1 : Form
     {
         private ListViewItemComparer comparer = new ListViewItemComparer();
+        private ListViewItemComparer comparer2 = new ListViewItemComparer();
         public List<MessageProcessor> messageProcessors = new List<MessageProcessor>();
         private long curPacket;
         private bool loadedAsMessages;
@@ -34,6 +36,16 @@ namespace aclogview
 
         private string pcapFilePath;
         private int currentOpcode;
+        private string currentHighlightMode;
+        private string currentCSText;
+        private string currentCIText;
+        // Highlight mode options
+        private string opcodeMode = "Opcode";
+        private string textModeCS = "Text (Case-Sensitive)";
+        private string textModeCI = "Text (Case-Insensitive)";
+
+        static private string sortTypeUInt = "UInt";
+        static private string sortTypeString = "String";
 
         public Form1(string[] args)
         {
@@ -71,20 +83,48 @@ namespace aclogview
             messageProcessors.Add(new CM_Writing());
             messageProcessors.Add(new Proto_UI());
             Globals.UseHex = checkBoxUseHex.Checked;
-            
-            
-            if (args != null && args.Length >= 2)
+
+            // Initialize our highlight mode
+            HighlightMode_comboBox.Items.Add(opcodeMode);
+            HighlightMode_comboBox.Items.Add(textModeCS);
+            HighlightMode_comboBox.Items.Add(textModeCI);
+
+            var options = new Options();
+            if (CommandLine.Parser.Default.ParseArguments(args, options))
             {
-                int opcode;
-                if (int.TryParse(args[1], out opcode))
-                    opCodesToHighlight.Add(opcode);
+                if (options.Opcode > 0)
+                {
+                    HighlightMode_comboBox.SelectedItem = opcodeMode;
+                    opCodesToHighlight.Add(options.Opcode);
+                    currentOpcode = options.Opcode;
+                    textBox_Search.Text += "0x" + currentOpcode.ToString("X");
+                }
+                else if (options.CSTextToSearch != null)
+                {
+                    HighlightMode_comboBox.SelectedItem = textModeCS;
+                    currentCSText = options.CSTextToSearch;
+                    textBox_Search.Text = currentCSText;
+                }
+                else if (options.CITextToSearch != null)
+                {
+                    HighlightMode_comboBox.SelectedItem = textModeCI;
+                    currentCIText = options.CITextToSearch;
+                    textBox_Search.Text = currentCIText;
+                }
+                else
+                {
+                    currentHighlightMode = opcodeMode;
+                    HighlightMode_comboBox.SelectedItem = opcodeMode;
+                }
+
+                if (options.InputFile != null)
+                    loadPcap(options.InputFile, options.AsMessages);
             }
-            if (args != null && args.Length >= 1) {
-                loadPcap(args[0], true); // Default to "Open As Messages"
-            } else
-            {
-                toolStripStatus.Text = "AC Log View";
-            }
+            // Turn on listview double buffering to prevent flickering
+            var prop = listView_Packets.GetType().GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
+            prop.SetValue(listView_Packets, true, null);
+            prop = listView_CreatedObjects.GetType().GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic);
+            prop.SetValue(listView_CreatedObjects, true, null);
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -95,8 +135,10 @@ namespace aclogview
         }
 
         List<PacketRecord> records = new List<PacketRecord>();
-        List<ListViewItem> listItems = new List<ListViewItem>();
-        
+        List<ListViewItem> packetListItems = new List<ListViewItem>();
+        // For the created objects listview
+        List<ListViewItem> createdListItems = new List<ListViewItem>();
+
         private void loadPcap(string fileName, bool asMessages, bool dontList = false) {
             Cursor.Current = Cursors.WaitCursor;
             Text = "AC Log View - " + Path.GetFileName(fileName);
@@ -113,21 +155,17 @@ namespace aclogview
             btnHighlight.Enabled = true;
             menuItem_ReOpen.Enabled = true;
             menuItem_ReOpenAsMessages.Enabled = true;
-            if (opCodesToHighlight.Count > 0)
-            {
-                Text += "              Highlighted OpCodes: ";
-                foreach (var opcode in opCodesToHighlight)
-                    Text += opcode + " (" + opcode.ToString("X4") + "),";
-            }
-
+            checkBoxUseHex.Enabled = true;
+            checkBox_ShowObjects.Enabled = true;
             records.Clear();
-            listItems.Clear();
+            packetListItems.Clear();
 
             bool abort = false;
             records = PCapReader.LoadPcap(fileName, asMessages, ref abort);
 
             if (!dontList)
             {
+                int hits = 0;
                 foreach (PacketRecord record in records)
                 {
                     ListViewItem newItem = new ListViewItem(record.index.ToString());
@@ -140,7 +178,51 @@ namespace aclogview
                     // This one requires special handling and cannot use function.
                     if (record.opcodes.Count == 0) newItem.SubItems.Add(string.Empty);
                     else newItem.SubItems.Add(record.opcodes[0].ToString("X").Substring(4, 4));
-                    listItems.Add(newItem);
+                    
+                    // Process highlighting modes
+                    if (currentHighlightMode == opcodeMode && opCodesToHighlight.Count > 0)
+                    {
+                        for (int i = 0; i < opCodesToHighlight.Count; i++)
+                        {
+                            if (record.opcodes.Contains((PacketOpcode)opCodesToHighlight[i]))
+                                hits++;
+                            // Opcode highlighting is applied in listView_Packets_RetrieveVirtualItem
+                        }
+                    }
+                    else if (currentHighlightMode == textModeCS)
+                    {
+                        var result = SearchForText(record, currentCSText, caseSensitive: true);
+                        if (result > 0)
+                        {
+                            newItem.BackColor = Color.LightBlue;
+                            hits++;
+                        }
+                    }
+                    else if (currentHighlightMode == textModeCI)
+                    {
+                        var result = SearchForText(record, currentCIText, caseSensitive: false);
+                        if (result > 0)
+                        {
+                            newItem.BackColor = Color.LightBlue;
+                            hits++;
+                        }
+                    }
+                    packetListItems.Add(newItem);
+                }
+                if (hits > 0 && (currentHighlightMode == textModeCS || currentHighlightMode == textModeCI) )
+                {
+                    string searchText = "";
+                    if (currentHighlightMode == textModeCS)
+                        searchText = currentCSText;
+                    else if (currentHighlightMode == textModeCI)
+                        searchText = currentCIText;
+                    Text = Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              Highlighted {hits} message(s) containing text: {searchText}";
+                }
+                else if (currentHighlightMode == opcodeMode && opCodesToHighlight.Count > 0)
+                {
+                    Text += $"              Highlighted {hits} message(s) containing Opcode: ";
+                    foreach (var opcode in opCodesToHighlight)
+                        Text += " 0x" + opcode.ToString("X4") + " (" + opcode + ")";
                 }
             }
 
@@ -160,12 +242,20 @@ namespace aclogview
 
         private void listView_Packets_ColumnClick(object sender, ColumnClickEventArgs e)
         {
+            if (e.Column == 0 || e.Column == 2 || e.Column == 5)
+            {
+                comparer.sortType = sortTypeUInt;
+            }
+            else
+            {
+                comparer.sortType = sortTypeString;
+            }
             if (comparer.col == e.Column)
             {
                 comparer.reverse = !comparer.reverse;
             }
             comparer.col = e.Column;
-            listItems.Sort(comparer);
+            packetListItems.Sort(comparer);
             if (records.Count>0)
                 listView_Packets.RedrawItems(0, records.Count - 1, false);
             updateData();
@@ -175,11 +265,12 @@ namespace aclogview
         {
             public int col;
             public bool reverse;
+            public string sortType;
 
             public int Compare(ListViewItem x, ListViewItem y)
             {
                 int result = 0;
-                if (col == 0 || col == 2 || col == 5)
+                if (sortType == sortTypeUInt)
                 {
                     result = CompareUInt(x.SubItems[col].Text, y.SubItems[col].Text);
                 }
@@ -223,7 +314,7 @@ namespace aclogview
 
             if (listView_Packets.SelectedIndices.Count > 0)
             {
-                PacketRecord record = records[Int32.Parse(listItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
+                PacketRecord record = records[Int32.Parse(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
                 byte[] data = record.data;
 
                 if (checkBox_useHighlighting.Checked && !loadedAsMessages) {
@@ -434,7 +525,7 @@ namespace aclogview
             treeView_ParsedData.Nodes.Clear();
 
             if (listView_Packets.SelectedIndices.Count > 0) {
-                PacketRecord record = records[Int32.Parse(listItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
+                PacketRecord record = records[Int32.Parse(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
 
                 if (loadedAsMessages)
                 {
@@ -519,11 +610,11 @@ namespace aclogview
 
         private void listView_Packets_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
         {
-            if (e.ItemIndex < listItems.Count) {
-                e.Item = listItems[e.ItemIndex];
+            if (e.ItemIndex < packetListItems.Count) {
+                e.Item = packetListItems[e.ItemIndex];
 
                 // Apply highlights here
-                if (opCodesToHighlight.Count > 0)
+                if ( (currentHighlightMode == opcodeMode) && (opCodesToHighlight.Count > 0) )
                 {
                     var record = records[Int32.Parse(e.Item.SubItems[0].Text)];
 
@@ -557,7 +648,7 @@ namespace aclogview
 
             if (openFile.ShowDialog() != DialogResult.OK)
                 return;
-
+            checkBox_ShowObjects.Checked = false;
             loadedAsMessages = asMessages;
 
             loadPcap(openFile.FileName, asMessages);
@@ -577,7 +668,7 @@ namespace aclogview
         {
             if (listView_Packets.TopItem == null)
                 return;
-            if (Text.Contains("Highlighted OpCodes") == false)
+            if (Text.Contains("Highlighted") == false)
                 return;
             if (listView_Packets.SelectedIndices.Count == 0)
             {
@@ -607,13 +698,16 @@ namespace aclogview
         {
             if (listView_Packets.TopItem == null)
                 return;
-            if (Text.Contains("Highlighted OpCodes") == false)
+            if (Text.Contains("Highlighted") == false)
                 return;
 
             if (listView_Packets.SelectedIndices.Count == 0)
             { 
                 listView_Packets.TopItem.Selected = true;
                 listView_Packets.TopItem.Focused = true;
+                listView_Packets.Focus();
+                if (listView_Packets.TopItem.BackColor != SystemColors.Window)
+                    return;
             }
             else
             {
@@ -879,6 +973,18 @@ namespace aclogview
                             Clipboard.SetText(strbuilder.ToString());
                             break;
                         }
+                    case "FindID":
+                        foreach (ListViewItem lvi in createdListItems)
+                        {
+                            if (treeView_ParsedData.SelectedNode.Text.Contains(lvi.SubItems[1].Text))
+                            {
+                                listView_CreatedObjects.TopItem = lvi;
+                                listView_CreatedObjects.Items[createdListItems[lvi.Index].Index].Selected = true;
+                                System.Media.SystemSounds.Asterisk.Play();
+                                break;
+                            }
+                        }
+                        break;
                 }
             }
         }
@@ -896,19 +1002,41 @@ namespace aclogview
         private void checkBoxUseHex_CheckedChanged(object sender, EventArgs e)
         {
             Globals.UseHex = checkBoxUseHex.Checked;
-            if (treeView_ParsedData.TopNode == null)
-                return;
+            
             Cursor.Current = Cursors.WaitCursor;
-            var savedExpansionState = treeView_ParsedData.Nodes.GetExpansionState();
-            var savedTopNode = treeView_ParsedData.GetTopNode();
-            treeView_ParsedData.BeginUpdate();
-            updateTree();
-            treeView_ParsedData.Nodes.SetExpansionState(savedExpansionState);
-            treeView_ParsedData.SetTopNode(savedTopNode);
-            treeView_ParsedData.EndUpdate();
+            if (treeView_ParsedData.TopNode != null)
+            {
+                var savedExpansionState = treeView_ParsedData.Nodes.GetExpansionState();
+                var savedTopNode = treeView_ParsedData.GetTopNode();
+                treeView_ParsedData.BeginUpdate();
+                updateTree();
+                treeView_ParsedData.Nodes.SetExpansionState(savedExpansionState);
+                treeView_ParsedData.SetTopNode(savedTopNode);
+                treeView_ParsedData.EndUpdate();
+            }
             if (listView_Packets.FocusedItem != null)
             {
                  listView_Packets.Focus();
+            }
+            if (splitContainer_Top.Panel2Collapsed == false)
+            {
+                if (listView_CreatedObjects.VirtualListSize != 0)
+                {
+                    for (int i = 0; i < listView_CreatedObjects.VirtualListSize; i++)
+                    {
+                        if (Globals.UseHex == false)
+                        {
+                            string temp = createdListItems[i].SubItems[1].Text;
+                            createdListItems[i].SubItems[1].Text = UInt32.Parse(temp.Remove(0, 2), System.Globalization.NumberStyles.AllowHexSpecifier).ToString();
+                        }
+                        else
+                        {
+                            uint temp = UInt32.Parse(createdListItems[i].SubItems[1].Text);
+                            createdListItems[i].SubItems[1].Text = "0x" + temp.ToString("X");
+                        }
+                    }
+                    listView_CreatedObjects.RedrawItems(0, listView_CreatedObjects.VirtualListSize - 1, false);
+                }
             }
             Cursor.Current = Cursors.Default;
         }
@@ -975,52 +1103,69 @@ namespace aclogview
             {
                 return;
             }
-            else if (searchString.Length == 6)
+
+            if ((string)HighlightMode_comboBox.SelectedItem == opcodeMode)
             {
-                if (searchString.Substring(0, 2).ToLower() == "0x")
+                if (searchString.Length == 6)
                 {
-                    var opcodeString = searchString.Substring(2, 4);
-                    if (HexTest(opcodeString))
+                    if (searchString.Substring(0, 2).ToLower() == "0x")
                     {
-                        currentOpcode = Int32.Parse(opcodeString, System.Globalization.NumberStyles.HexNumber);
+                        var opcodeString = searchString.Substring(2, 4);
+                        if (HexTest(opcodeString))
+                        {
+                            currentOpcode = Int32.Parse(opcodeString, System.Globalization.NumberStyles.HexNumber);
+                        }
                     }
                 }
-            }
-            // decimal
-            if (int.TryParse(searchString, out currentOpcode))
-            {
-                // do nothing currently, currentOpcode should be set
-            }
-            // hex
-            else if (HexTest(searchString))
-            {
-                currentOpcode = Int32.Parse(searchString, System.Globalization.NumberStyles.HexNumber);
-            }
-            // c-style hex check
-            else if(CHexTest(searchString))
-            {
-                currentOpcode = Int32.Parse(searchString.Remove(0,2), System.Globalization.NumberStyles.HexNumber);
-            }
-            // reset
-            else
-            {
-                textBox_Search.Clear();
-            }
-
-            if (currentOpcode != 0)
-            {
-                textBox_Search.Text = "0x";
-                for (int i = currentOpcode.ToString("X").Length; i < 4; i++)
+                // decimal
+                if (int.TryParse(searchString, out currentOpcode))
                 {
-                    textBox_Search.Text += "0";
+                    // do nothing currently, currentOpcode should be set
                 }
-                textBox_Search.Text += currentOpcode.ToString("X");
-                opCodesToHighlight.Clear();
-                opCodesToHighlight.Add(currentOpcode);
-                loadPcap(pcapFilePath, loadedAsMessages);
-            } else
+                // hex
+                else if (HexTest(searchString))
+                {
+                    currentOpcode = Int32.Parse(searchString, System.Globalization.NumberStyles.HexNumber);
+                }
+                // c-style hex check
+                else if (CHexTest(searchString))
+                {
+                    currentOpcode = Int32.Parse(searchString.Remove(0, 2), System.Globalization.NumberStyles.HexNumber);
+                }
+                // reset
+                else
+                {
+                    textBox_Search.Clear();
+                }
+
+                if (currentOpcode != 0)
+                {
+                    textBox_Search.Text = "0x";
+                    for (int i = currentOpcode.ToString("X").Length; i < 4; i++)
+                    {
+                        textBox_Search.Text += "0";
+                    }
+                    textBox_Search.Text += currentOpcode.ToString("X");
+                    opCodesToHighlight.Clear();
+                    opCodesToHighlight.Add(currentOpcode);
+                    loadPcap(pcapFilePath, loadedAsMessages);
+                }
+                else
+                {
+                    toolStripStatus.Text = "Invalid hex code.";
+                }
+            }
+            else if ((string)HighlightMode_comboBox.SelectedItem == textModeCS)
             {
-                toolStripStatus.Text = "Invalid hex code.";
+                currentCSText = searchString;
+                ClearHighlighting();
+                loadPcap(pcapFilePath, loadedAsMessages);
+            }
+            else if ((string)HighlightMode_comboBox.SelectedItem == textModeCI)
+            {
+                currentCIText = searchString;
+                ClearHighlighting();
+                loadPcap(pcapFilePath, loadedAsMessages);
             }
         }
 
@@ -1036,11 +1181,13 @@ namespace aclogview
 
         private void menuItem_ReOpen_Click(object sender, EventArgs e)
         {
+            checkBox_ShowObjects.Checked = false;
             loadPcap(pcapFilePath, false);
         }
 
         private void menuItem_ReOpenAsMessages_Click(object sender, EventArgs e)
         {
+            checkBox_ShowObjects.Checked = false;
             loadPcap(pcapFilePath, true);
         }
 
@@ -1048,6 +1195,237 @@ namespace aclogview
         {
             if (e.KeyChar == (char)13) // ENTER KEY
                 btnHighlight.PerformClick();
+        }
+
+        private void checkBox_ShowObjects_CheckedChanged(object sender, EventArgs e)
+        { 
+            if (checkBox_ShowObjects.Checked == true)
+            {
+                splitContainer_Top.Panel2Collapsed = false;
+                Cursor.Current = Cursors.WaitCursor;
+                if (packetListItems.Count > 0)
+                    ProcessCreatedObjects(pcapFilePath);
+                Cursor.Current = Cursors.Default;
+            }
+            else
+            {
+                splitContainer_Top.Panel2Collapsed = true;
+                listView_CreatedObjects.VirtualListSize = 0;
+                createdListItems.Clear();
+            }
+        }
+
+        private void ProcessCreatedObjects(string fileName)
+        {
+            int hits = 0;
+            int exceptions = 0;
+            bool searchAborted = false;
+
+            var records = PCapReader.LoadPcap(fileName, true, ref searchAborted);
+
+            foreach (PacketRecord record in records)
+            {
+                try
+                {
+                    if (record.data.Length <= 4)
+                        continue;
+
+                    BinaryReader fragDataReader = new BinaryReader(new MemoryStream(record.data));
+
+                    var messageCode = fragDataReader.ReadUInt32();
+
+                    if (messageCode == 0xF745) // Create Object
+                    {
+                        hits++;
+                        var parsed = CM_Physics.CreateObject.read(fragDataReader);
+                        ListViewItem lvi = new ListViewItem();
+                        lvi.Text = record.index.ToString();
+                        lvi.SubItems.Add(Utility.FormatHex(parsed.object_id));
+                        lvi.SubItems.Add(parsed.wdesc._name.ToString());
+                        lvi.SubItems.Add(parsed.wdesc._wcid.ToString());
+                        lvi.SubItems.Add(parsed.wdesc._type.ToString());
+                        createdListItems.Add(lvi);
+                    }
+                }
+                catch
+                {
+                    // Do something with the exception maybe
+                    exceptions++;
+
+                    //Interlocked.Increment(ref totalExceptions);
+                }
+            }
+            listView_CreatedObjects.VirtualListSize = hits;
+            if (hits > 0)
+                listView_CreatedObjects.RedrawItems(0, hits - 1, false);
+        }
+
+        private void listView_CreatedObjects_ColumnClick(object sender, ColumnClickEventArgs e)
+        {
+            if (e.Column == 0 || e.Column == 3)
+            {
+                comparer2.sortType = sortTypeUInt;
+            }
+            else
+            {
+                comparer2.sortType = sortTypeString;
+            }
+            if (comparer2.col == e.Column)
+            {
+                comparer2.reverse = !comparer2.reverse;
+            }
+            comparer2.col = e.Column;
+            createdListItems.Sort(comparer2);
+            if (listView_CreatedObjects.VirtualListSize > 0)
+                listView_CreatedObjects.RedrawItems(0, listView_CreatedObjects.VirtualListSize - 1, false);
+        }
+
+        private void HighlightMode_comboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (currentHighlightMode == (string)HighlightMode_comboBox.SelectedItem)
+                return;
+
+            if ((string)HighlightMode_comboBox.SelectedItem == opcodeMode)
+            {
+                currentHighlightMode = opcodeMode;
+                Text = "AC Log View - " + Path.GetFileName(pcapFilePath);
+                textBox_Search.Clear();
+                ClearHighlighting();
+                textBox_Search.MaxLength = 6;
+            }
+            else if ((string)HighlightMode_comboBox.SelectedItem == textModeCS)
+            {
+                currentHighlightMode = textModeCS;
+                Text = "AC Log View - " + Path.GetFileName(pcapFilePath);
+                textBox_Search.Clear();
+                opCodesToHighlight.Clear();
+                ClearHighlighting();
+                textBox_Search.MaxLength = 256;
+            }
+            else if ((string)HighlightMode_comboBox.SelectedItem == textModeCI)
+            {
+                currentHighlightMode = textModeCI;
+                Text = "AC Log View - " + Path.GetFileName(pcapFilePath);
+                textBox_Search.Clear();
+                opCodesToHighlight.Clear();
+                ClearHighlighting();
+                textBox_Search.MaxLength = 256;
+            }
+        }
+
+        private void ClearHighlighting()
+        {
+            for (int i = 0; i < listView_Packets.VirtualListSize; i++)
+            {
+                listView_Packets.Items[i].BackColor = SystemColors.Window;
+            }
+        }
+
+        private int SearchForText(PacketRecord record, string textToSearch, bool caseSensitive = true)
+        {
+            int exceptions = 0;
+            int hits = 0;
+
+            try
+            {
+                if (record.data.Length <= 4 || (textToSearch.Length > record.data.Length) )
+                    return hits;
+
+                BinaryReader fragDataReader = new BinaryReader(new MemoryStream(record.data));
+
+                if (caseSensitive)
+                {
+                    int asciiResult = SearchBytePattern(ASCIIEncoding.ASCII.GetBytes(textToSearch), record.data);
+                    int unicodeResult = SearchBytePattern(UnicodeEncoding.Unicode.GetBytes(textToSearch), record.data);
+                    if (asciiResult > 0 || unicodeResult > 0)
+                        hits++;
+                }
+                else
+                {
+                    string asciiStringData = System.Text.Encoding.ASCII.GetString(record.data);
+                    string unicodeStringData = System.Text.Encoding.Unicode.GetString(record.data);
+                    // Shift the byte stream by 1 to catch any Unicode strings not on the previous two byte boundary
+                    string unicodeStringData2 = System.Text.Encoding.Unicode.GetString(record.data, 1, (int)fragDataReader.BaseStream.Length - 1);
+                    int asciiResultCI = asciiStringData.IndexOf(textToSearch, StringComparison.OrdinalIgnoreCase);
+                    int unicodeResultCI = unicodeStringData.IndexOf(textToSearch, StringComparison.OrdinalIgnoreCase);
+                    int unicodeResultCI2 = unicodeStringData2.IndexOf(textToSearch, StringComparison.OrdinalIgnoreCase);
+                    if (asciiResultCI != -1 || unicodeResultCI != -1 || unicodeResultCI2 != -1)
+                        hits++;
+                }
+            }
+            catch
+            {
+                // Do something with the exception maybe
+                exceptions++;
+
+                //Interlocked.Increment(ref totalExceptions);
+            }
+            return hits;
+        }
+
+        private int SearchBytePattern(byte[] pattern, byte[] bytes)
+        {
+            int matches = 0;
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (pattern[0] == bytes[i] && bytes.Length - i >= pattern.Length)
+                {
+                    bool ismatch = true;
+                    for (int j = 1; j < pattern.Length && ismatch == true; j++)
+                    {
+                        if (bytes[i + j] != pattern[j])
+                            ismatch = false;
+                    }
+                    if (ismatch)
+                    {
+                        matches++;
+                        i += pattern.Length - 1;
+                    }
+                }
+            }
+            return matches;
+        }
+
+        private void menuItem_ToolFindTextInFiles_Click(object sender, EventArgs e)
+        {
+            var form = new FindTextInFilesForm();
+            form.Show(this);
+        }
+
+        private void listView_CreatedObjects_RetrieveVirtualItem(object sender, RetrieveVirtualItemEventArgs e)
+        {
+            if (e.ItemIndex < createdListItems.Count)
+            {
+                e.Item = createdListItems[e.ItemIndex];
+            }
+        }
+
+        private void objectsContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem == jumpToMessageMenuItem)
+            {
+                var selected = Int32.Parse(createdListItems[listView_CreatedObjects.SelectedIndices[0]].Text);
+                listView_Packets.TopItem = listView_Packets.Items[selected];
+                listView_Packets.Items[selected].Selected = true;
+            }
+        }
+
+        private void treeView_ParsedData_NodeMouseClick(object sender, TreeNodeMouseClickEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+                treeView_ParsedData.SelectedNode = e.Node;
+        }
+
+        private void parsedContextMenu_Opening(object sender, CancelEventArgs e)
+        {
+            if (treeView_ParsedData.SelectedNode != null && createdListItems.Count > 0)
+            {
+                parsedContextMenu.Items[3].Visible = true;
+            }
+            else
+            {
+                parsedContextMenu.Items[3].Visible = false;
+            }
         }
     }
 }
