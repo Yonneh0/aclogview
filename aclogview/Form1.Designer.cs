@@ -45,19 +45,25 @@
             this.jumpToMessageMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.highlightObjectIDMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.splitContainer_Bottom = new System.Windows.Forms.SplitContainer();
-            this.textBox_PacketData = new System.Windows.Forms.RichTextBox();
+            this.tabControl1 = new System.Windows.Forms.TabControl();
+            this.tabHexView = new System.Windows.Forms.TabPage();
+            this.hexBox1 = new Be.Windows.Forms.HexBox();
+            this.hexContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.copyTextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.copyHexMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.treeView_ParsedData = new BufferedTreeView();
             this.parsedContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.ExpandAll = new System.Windows.Forms.ToolStripMenuItem();
             this.CollapseAll = new System.Windows.Forms.ToolStripMenuItem();
-            this.CopyCmd = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.CopyAll = new System.Windows.Forms.ToolStripMenuItem();
             this.FindID = new System.Windows.Forms.ToolStripMenuItem();
             this.mainMenu = new System.Windows.Forms.MainMenu(this.components);
             this.menuItem_File = new System.Windows.Forms.MenuItem();
-            this.menuItem_Open = new System.Windows.Forms.MenuItem();
             this.menuItem_OpenAsMessages = new System.Windows.Forms.MenuItem();
-            this.menuItem_ReOpen = new System.Windows.Forms.MenuItem();
+            this.menuItem_OpenAsFragments = new System.Windows.Forms.MenuItem();
             this.menuItem_ReOpenAsMessages = new System.Windows.Forms.MenuItem();
+            this.menuItem_ReOpenAsFragments = new System.Windows.Forms.MenuItem();
             this.menuItem_Edit = new System.Windows.Forms.MenuItem();
             this.mnuItem_EditPreviousHighlightedRow = new System.Windows.Forms.MenuItem();
             this.mnuItem_EditNextHighlightedRow = new System.Windows.Forms.MenuItem();
@@ -100,6 +106,9 @@
             this.splitContainer_Bottom.Panel1.SuspendLayout();
             this.splitContainer_Bottom.Panel2.SuspendLayout();
             this.splitContainer_Bottom.SuspendLayout();
+            this.tabControl1.SuspendLayout();
+            this.tabHexView.SuspendLayout();
+            this.hexContextMenu.SuspendLayout();
             this.parsedContextMenu.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox_Search)).BeginInit();
             this.statusStrip.SuspendLayout();
@@ -265,7 +274,7 @@
             this.jumpToMessageMenuItem,
             this.highlightObjectIDMenuItem});
             this.objectsContextMenu.Name = "objectsContextMenu";
-            this.objectsContextMenu.Size = new System.Drawing.Size(189, 70);
+            this.objectsContextMenu.Size = new System.Drawing.Size(189, 48);
             this.objectsContextMenu.Opening += new System.ComponentModel.CancelEventHandler(this.objectsContextMenu_Opening);
             this.objectsContextMenu.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.objectsContextMenu_ItemClicked);
             // 
@@ -290,7 +299,7 @@
             // 
             // splitContainer_Bottom.Panel1
             // 
-            this.splitContainer_Bottom.Panel1.Controls.Add(this.textBox_PacketData);
+            this.splitContainer_Bottom.Panel1.Controls.Add(this.tabControl1);
             // 
             // splitContainer_Bottom.Panel2
             // 
@@ -299,15 +308,77 @@
             this.splitContainer_Bottom.SplitterDistance = 1074;
             this.splitContainer_Bottom.TabIndex = 0;
             // 
-            // textBox_PacketData
+            // tabControl1
             // 
-            this.textBox_PacketData.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.textBox_PacketData.Font = new System.Drawing.Font("Courier New", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBox_PacketData.Location = new System.Drawing.Point(0, 0);
-            this.textBox_PacketData.Name = "textBox_PacketData";
-            this.textBox_PacketData.Size = new System.Drawing.Size(1070, 410);
-            this.textBox_PacketData.TabIndex = 0;
-            this.textBox_PacketData.Text = "";
+            this.tabControl1.Controls.Add(this.tabHexView);
+            this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.tabControl1.Location = new System.Drawing.Point(0, 0);
+            this.tabControl1.Name = "tabControl1";
+            this.tabControl1.SelectedIndex = 0;
+            this.tabControl1.Size = new System.Drawing.Size(1070, 410);
+            this.tabControl1.TabIndex = 0;
+            // 
+            // tabHexView
+            // 
+            this.tabHexView.Controls.Add(this.hexBox1);
+            this.tabHexView.Location = new System.Drawing.Point(4, 22);
+            this.tabHexView.Name = "tabHexView";
+            this.tabHexView.Padding = new System.Windows.Forms.Padding(3);
+            this.tabHexView.Size = new System.Drawing.Size(1062, 384);
+            this.tabHexView.TabIndex = 0;
+            this.tabHexView.Text = "Hex View";
+            this.tabHexView.UseVisualStyleBackColor = true;
+            // 
+            // hexBox1
+            // 
+            this.hexBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.hexBox1.BorderStyle = System.Windows.Forms.BorderStyle.None;
+            // 
+            // 
+            // 
+            this.hexBox1.BuiltInContextMenu.CopyMenuItemText = "Copy";
+            this.hexBox1.BuiltInContextMenu.SelectAllMenuItemText = "Select All";
+            this.hexBox1.ContextMenuStrip = this.hexContextMenu;
+            this.hexBox1.Font = new System.Drawing.Font("Courier New", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.hexBox1.GroupSize = 8;
+            this.hexBox1.LineInfoVisible = true;
+            this.hexBox1.Location = new System.Drawing.Point(3, 3);
+            this.hexBox1.Name = "hexBox1";
+            this.hexBox1.ReadOnly = true;
+            this.hexBox1.SelectionBackColor = System.Drawing.SystemColors.Highlight;
+            this.hexBox1.ShadowSelectionColor = System.Drawing.Color.FromArgb(((int)(((byte)(100)))), ((int)(((byte)(60)))), ((int)(((byte)(188)))), ((int)(((byte)(255)))));
+            this.hexBox1.Size = new System.Drawing.Size(1056, 378);
+            this.hexBox1.StringViewVisible = true;
+            this.hexBox1.TabIndex = 1;
+            this.hexBox1.UseFixedBytesPerLine = true;
+            this.hexBox1.VScrollBarVisible = true;
+            // 
+            // hexContextMenu
+            // 
+            this.hexContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.copyTextMenuItem,
+            this.copyHexMenuItem});
+            this.hexContextMenu.Name = "hexContextMenu";
+            this.hexContextMenu.Size = new System.Drawing.Size(214, 48);
+            this.hexContextMenu.Opening += new System.ComponentModel.CancelEventHandler(this.hexContextMenu_Opening);
+            this.hexContextMenu.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.hexContextMenu_ItemClicked);
+            // 
+            // copyTextMenuItem
+            // 
+            this.copyTextMenuItem.Name = "copyTextMenuItem";
+            this.copyTextMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.C)));
+            this.copyTextMenuItem.Size = new System.Drawing.Size(213, 22);
+            this.copyTextMenuItem.Text = "Copy as &Text";
+            // 
+            // copyHexMenuItem
+            // 
+            this.copyHexMenuItem.Name = "copyHexMenuItem";
+            this.copyHexMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)(((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Shift) 
+            | System.Windows.Forms.Keys.C)));
+            this.copyHexMenuItem.Size = new System.Drawing.Size(213, 22);
+            this.copyHexMenuItem.Text = "Copy as &Hex";
             // 
             // treeView_ParsedData
             // 
@@ -325,10 +396,11 @@
             this.parsedContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.ExpandAll,
             this.CollapseAll,
-            this.CopyCmd,
+            this.toolStripSeparator1,
+            this.CopyAll,
             this.FindID});
             this.parsedContextMenu.Name = "parsedContextMenu";
-            this.parsedContextMenu.Size = new System.Drawing.Size(184, 92);
+            this.parsedContextMenu.Size = new System.Drawing.Size(184, 98);
             this.parsedContextMenu.Opening += new System.ComponentModel.CancelEventHandler(this.parsedContextMenu_Opening);
             this.parsedContextMenu.ItemClicked += new System.Windows.Forms.ToolStripItemClickedEventHandler(this.parsedContextMenu_ItemClicked);
             // 
@@ -344,12 +416,17 @@
             this.CollapseAll.Size = new System.Drawing.Size(183, 22);
             this.CollapseAll.Text = "C&ollapse All";
             // 
-            // CopyCmd
+            // toolStripSeparator1
             // 
-            this.CopyCmd.Name = "CopyCmd";
-            this.CopyCmd.ShowShortcutKeys = false;
-            this.CopyCmd.Size = new System.Drawing.Size(183, 22);
-            this.CopyCmd.Text = "&Copy";
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            this.toolStripSeparator1.Size = new System.Drawing.Size(180, 6);
+            // 
+            // CopyAll
+            // 
+            this.CopyAll.Name = "CopyAll";
+            this.CopyAll.ShowShortcutKeys = false;
+            this.CopyAll.Size = new System.Drawing.Size(183, 22);
+            this.CopyAll.Text = "&Copy All";
             // 
             // FindID
             // 
@@ -369,37 +446,39 @@
             // 
             this.menuItem_File.Index = 0;
             this.menuItem_File.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-            this.menuItem_Open,
             this.menuItem_OpenAsMessages,
-            this.menuItem_ReOpen,
-            this.menuItem_ReOpenAsMessages});
+            this.menuItem_OpenAsFragments,
+            this.menuItem_ReOpenAsMessages,
+            this.menuItem_ReOpenAsFragments});
             this.menuItem_File.Text = "File";
-            // 
-            // menuItem_Open
-            // 
-            this.menuItem_Open.Index = 0;
-            this.menuItem_Open.Text = "Open";
-            this.menuItem_Open.Click += new System.EventHandler(this.menuItem_Open_Click);
             // 
             // menuItem_OpenAsMessages
             // 
-            this.menuItem_OpenAsMessages.Index = 1;
+            this.menuItem_OpenAsMessages.Index = 0;
+            this.menuItem_OpenAsMessages.Shortcut = System.Windows.Forms.Shortcut.CtrlO;
             this.menuItem_OpenAsMessages.Text = "Open As Messages";
             this.menuItem_OpenAsMessages.Click += new System.EventHandler(this.menuItem_OpenAsMessages_Click);
             // 
-            // menuItem_ReOpen
+            // menuItem_OpenAsFragments
             // 
-            this.menuItem_ReOpen.Enabled = false;
-            this.menuItem_ReOpen.Index = 2;
-            this.menuItem_ReOpen.Text = "Re-Open";
-            this.menuItem_ReOpen.Click += new System.EventHandler(this.menuItem_ReOpen_Click);
+            this.menuItem_OpenAsFragments.Index = 1;
+            this.menuItem_OpenAsFragments.Text = "Open As Fragments";
+            this.menuItem_OpenAsFragments.Click += new System.EventHandler(this.menuItem_OpenAsFragments_Click);
             // 
             // menuItem_ReOpenAsMessages
             // 
             this.menuItem_ReOpenAsMessages.Enabled = false;
-            this.menuItem_ReOpenAsMessages.Index = 3;
+            this.menuItem_ReOpenAsMessages.Index = 2;
+            this.menuItem_ReOpenAsMessages.Shortcut = System.Windows.Forms.Shortcut.CtrlShiftO;
             this.menuItem_ReOpenAsMessages.Text = "Re-Open As Messages";
             this.menuItem_ReOpenAsMessages.Click += new System.EventHandler(this.menuItem_ReOpenAsMessages_Click);
+            // 
+            // menuItem_ReOpenAsFragments
+            // 
+            this.menuItem_ReOpenAsFragments.Enabled = false;
+            this.menuItem_ReOpenAsFragments.Index = 3;
+            this.menuItem_ReOpenAsFragments.Text = "Re-Open As Fragments";
+            this.menuItem_ReOpenAsFragments.Click += new System.EventHandler(this.menuItem_ReOpenAsFragments_Click);
             // 
             // menuItem_Edit
             // 
@@ -414,60 +493,60 @@
             this.mnuItem_EditPreviousHighlightedRow.Index = 0;
             this.mnuItem_EditPreviousHighlightedRow.Shortcut = System.Windows.Forms.Shortcut.ShiftF3;
             this.mnuItem_EditPreviousHighlightedRow.Text = "Previous Highlighted Row";
-            this.mnuItem_EditPreviousHighlightedRow.Click += new System.EventHandler(this.mnuItem_EditPreviousHighlightedRow_Click);
+            this.mnuItem_EditPreviousHighlightedRow.Click += new System.EventHandler(this.menuItem_EditPreviousHighlightedRow_Click);
             // 
             // mnuItem_EditNextHighlightedRow
             // 
             this.mnuItem_EditNextHighlightedRow.Index = 1;
             this.mnuItem_EditNextHighlightedRow.Shortcut = System.Windows.Forms.Shortcut.F3;
             this.mnuItem_EditNextHighlightedRow.Text = "Next Highlighted Row";
-            this.mnuItem_EditNextHighlightedRow.Click += new System.EventHandler(this.mnuItem_EditNextHighlightedRow_Click);
+            this.mnuItem_EditNextHighlightedRow.Click += new System.EventHandler(this.menuItem_EditNextHighlightedRow_Click);
             // 
             // menuItem1
             // 
             this.menuItem1.Index = 2;
             this.menuItem1.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
+            this.mnuItem_ToolFindOpcodeInFiles,
+            this.menuItem_ToolFindTextInFiles,
+            this.menuItem2,
             this.menuItem_ToolCount,
             this.menuItem_ToolBad,
             this.menuItem_ToolHeatmap,
-            this.menuItem2,
-            this.mnuItem_ToolFindOpcodeInFiles,
-            this.menuItem_ToolFindTextInFiles,
             this.mnuItem_ToolFragDatListTool});
             this.menuItem1.Text = "Tools";
             // 
             // menuItem_ToolCount
             // 
-            this.menuItem_ToolCount.Index = 0;
+            this.menuItem_ToolCount.Index = 3;
             this.menuItem_ToolCount.Text = "Count Packet Types";
             this.menuItem_ToolCount.Click += new System.EventHandler(this.menuItem_ToolCount_Click);
             // 
             // menuItem_ToolBad
             // 
-            this.menuItem_ToolBad.Index = 1;
+            this.menuItem_ToolBad.Index = 4;
             this.menuItem_ToolBad.Text = "Find Bad Parsers";
             this.menuItem_ToolBad.Click += new System.EventHandler(this.menuItem_ToolBad_Click);
             // 
             // menuItem_ToolHeatmap
             // 
-            this.menuItem_ToolHeatmap.Index = 2;
+            this.menuItem_ToolHeatmap.Index = 5;
             this.menuItem_ToolHeatmap.Text = "Heatmap";
             this.menuItem_ToolHeatmap.Click += new System.EventHandler(this.menuItem_ToolHeatmap_Click);
             // 
             // menuItem2
             // 
-            this.menuItem2.Index = 3;
+            this.menuItem2.Index = 2;
             this.menuItem2.Text = "-";
             // 
             // mnuItem_ToolFindOpcodeInFiles
             // 
-            this.mnuItem_ToolFindOpcodeInFiles.Index = 4;
+            this.mnuItem_ToolFindOpcodeInFiles.Index = 0;
             this.mnuItem_ToolFindOpcodeInFiles.Text = "Find Opcode In Files";
-            this.mnuItem_ToolFindOpcodeInFiles.Click += new System.EventHandler(this.mnuItem_ToolFindOpcodeInFiles_Click);
+            this.mnuItem_ToolFindOpcodeInFiles.Click += new System.EventHandler(this.menuItem_ToolFindOpcodeInFiles_Click);
             // 
             // menuItem_ToolFindTextInFiles
             // 
-            this.menuItem_ToolFindTextInFiles.Index = 5;
+            this.menuItem_ToolFindTextInFiles.Index = 1;
             this.menuItem_ToolFindTextInFiles.Text = "Find Text In Files";
             this.menuItem_ToolFindTextInFiles.Click += new System.EventHandler(this.menuItem_ToolFindTextInFiles_Click);
             // 
@@ -475,7 +554,7 @@
             // 
             this.mnuItem_ToolFragDatListTool.Index = 6;
             this.mnuItem_ToolFragDatListTool.Text = "Frag Dat List Tool";
-            this.mnuItem_ToolFragDatListTool.Click += new System.EventHandler(this.mnuItem_ToolFragDatListTool_Click);
+            this.mnuItem_ToolFragDatListTool.Click += new System.EventHandler(this.menuItem_ToolFragDatListTool_Click);
             // 
             // menuItem_Help
             // 
@@ -690,6 +769,9 @@
             this.splitContainer_Bottom.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer_Bottom)).EndInit();
             this.splitContainer_Bottom.ResumeLayout(false);
+            this.tabControl1.ResumeLayout(false);
+            this.tabHexView.ResumeLayout(false);
+            this.hexContextMenu.ResumeLayout(false);
             this.parsedContextMenu.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox_Search)).EndInit();
             this.statusStrip.ResumeLayout(false);
@@ -707,14 +789,13 @@
         private System.Windows.Forms.MenuItem menuItem_File;
         private System.Windows.Forms.MenuItem menuItem_Edit;
         private System.Windows.Forms.MenuItem menuItem_Help;
-        private System.Windows.Forms.MenuItem menuItem_Open;
+        private System.Windows.Forms.MenuItem menuItem_OpenAsFragments;
         private System.Windows.Forms.MenuItem menuItem_About;
         private System.Windows.Forms.SplitContainer splitContainer_Bottom;
         private System.Windows.Forms.MenuStrip menuStrip;
         private System.Windows.Forms.TextBox textBox_Search;
         private System.Windows.Forms.PictureBox pictureBox_Search;
         private System.Windows.Forms.StatusStrip statusStrip;
-        private System.Windows.Forms.RichTextBox textBox_PacketData;
         private System.Windows.Forms.ColumnHeader columnHeader1;
         private System.Windows.Forms.ColumnHeader columnHeader2;
         private System.Windows.Forms.ColumnHeader columnHeader3;
@@ -735,7 +816,7 @@
         private System.Windows.Forms.MenuItem menuItem2;
         private System.Windows.Forms.MenuItem mnuItem_ToolFragDatListTool;
         private System.Windows.Forms.ContextMenuStrip parsedContextMenu;
-        private System.Windows.Forms.ToolStripMenuItem CopyCmd;
+        private System.Windows.Forms.ToolStripMenuItem CopyAll;
         private System.Windows.Forms.Button CmdLock;
         private System.Windows.Forms.Button cmdforward;
         private System.Windows.Forms.Button cmdbackward;
@@ -745,7 +826,7 @@
         private System.Windows.Forms.CheckBox checkBoxUseHex;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatus;
         private System.Windows.Forms.Button btnHighlight;
-        private System.Windows.Forms.MenuItem menuItem_ReOpen;
+        private System.Windows.Forms.MenuItem menuItem_ReOpenAsFragments;
         private System.Windows.Forms.MenuItem menuItem_ReOpenAsMessages;
         private System.Windows.Forms.ToolStripMenuItem ExpandAll;
         private System.Windows.Forms.ToolStripMenuItem CollapseAll;
@@ -764,6 +845,13 @@
         private System.Windows.Forms.ToolStripMenuItem jumpToMessageMenuItem;
         private System.Windows.Forms.ToolStripMenuItem FindID;
         private System.Windows.Forms.ToolStripMenuItem highlightObjectIDMenuItem;
+        private System.Windows.Forms.TabControl tabControl1;
+        private System.Windows.Forms.TabPage tabHexView;
+        private Be.Windows.Forms.HexBox hexBox1;
+        private System.Windows.Forms.ContextMenuStrip hexContextMenu;
+        private System.Windows.Forms.ToolStripMenuItem copyHexMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem copyTextMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
     }
 }
 

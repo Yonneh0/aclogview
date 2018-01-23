@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using aclogview.Properties;
+using Be.Windows.Forms;
 
 namespace aclogview
 {
@@ -21,7 +22,6 @@ namespace aclogview
         private ListViewItemComparer comparer = new ListViewItemComparer();
         private ListViewItemComparer comparer2 = new ListViewItemComparer();
         public List<MessageProcessor> messageProcessors = new List<MessageProcessor>();
-        private long curPacket;
         private bool loadedAsMessages;
 
         private string[] args;
@@ -46,8 +46,15 @@ namespace aclogview
         private string textModeCI = "Text (Case-Insensitive)";
         private string uintMode = "UINT32";
 
-        static private string sortTypeUInt = "UInt";
-        static private string sortTypeString = "String";
+        public enum SortType
+        {
+            Uint,
+            String
+        }
+
+        public static Dictionary<int, ContextInfo> contextList = new Dictionary<int, ContextInfo>();
+        public static int nodeIndex = 0;
+        public static int dataIndex = 0;
 
         public Form1(string[] args)
         {
@@ -100,7 +107,7 @@ namespace aclogview
                     HighlightMode_comboBox.SelectedItem = opcodeMode;
                     opCodesToHighlight.Add(options.Opcode);
                     currentOpcode = options.Opcode;
-                    textBox_Search.Text += "0x" + currentOpcode.ToString("X");
+                    textBox_Search.Text += "0x" + currentOpcode.ToString("X4");
                 }
                 else if (options.CSTextToSearch != null)
                 {
@@ -148,20 +155,25 @@ namespace aclogview
             pcapFilePath = Path.GetFullPath(fileName);
             toolStripStatus.Text = pcapFilePath;
             loadedAsMessages = asMessages; // This needs to be set as well or you will encounter some fragment issues with some messages.
-            if (asMessages) {
-                checkBox_useHighlighting.Checked = false;
-                checkBox_useHighlighting.Enabled = false;
-            } else {
-                checkBox_useHighlighting.Checked = true;
-                checkBox_useHighlighting.Enabled = true;
-            }
             btnHighlight.Enabled = true;
-            menuItem_ReOpen.Enabled = true;
+            menuItem_ReOpenAsFragments.Enabled = true;
             menuItem_ReOpenAsMessages.Enabled = true;
             checkBoxUseHex.Enabled = true;
             checkBox_ShowObjects.Enabled = true;
             records.Clear();
             packetListItems.Clear();
+            // This code needs to come after records.Clear(); so that the
+            // hex display does not try to update while still loading the pcap.
+            if (asMessages)
+            {
+                checkBox_useHighlighting.Checked = false;
+                checkBox_useHighlighting.Enabled = false;
+            }
+            else
+            {
+                checkBox_useHighlighting.Checked = true;
+                checkBox_useHighlighting.Enabled = true;
+            }
 
             bool abort = false;
             records = PCapReader.LoadPcap(fileName, asMessages, ref abort);
@@ -222,24 +234,37 @@ namespace aclogview
                     }
                     packetListItems.Add(newItem);
                 }
-                if (hits > 0 && (currentHighlightMode == textModeCS || currentHighlightMode == textModeCI) )
+                if ( (currentHighlightMode == textModeCS || currentHighlightMode == textModeCI) )
                 {
                     string searchText = "";
                     if (currentHighlightMode == textModeCS)
                         searchText = currentCSText;
                     else if (currentHighlightMode == textModeCI)
                         searchText = currentCIText;
-                    Text = Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              Highlighted {hits} message(s) containing text: {searchText}";
+                    if (hits > 0)
+                        Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              Highlighted {hits} message(s) containing text: {searchText}";
+                    else
+                        Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              No message(s) found containing text: {searchText}";
                 }
                 else if (currentHighlightMode == opcodeMode && opCodesToHighlight.Count > 0)
                 {
-                    Text += $"              Highlighted {hits} message(s) containing Opcode: ";
+                    if (hits > 0)
+                    {
+                        Text += $"              Highlighted {hits} message(s) containing Opcode: ";
+                    }
+                    else
+                    {
+                        Text += $"              No message(s) found containing Opcode: ";
+                    }
                     foreach (var opcode in opCodesToHighlight)
                         Text += " 0x" + opcode.ToString("X4") + " (" + opcode + ")";
                 }
-                else if (hits > 0 && currentHighlightMode == uintMode)
+                else if (currentHighlightMode == uintMode)
                 {
-                    Text = Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              Highlighted {hits} message(s) containing UINT32: {textBox_Search.Text}";
+                    if (hits > 0)
+                        Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              Highlighted {hits} message(s) containing UINT32: {textBox_Search.Text}";
+                    else
+                        Text = "AC Log View - " + Path.GetFileName(pcapFilePath) + $"              No message(s) found containing UINT32: {textBox_Search.Text}";
                 }
             }
 
@@ -261,11 +286,11 @@ namespace aclogview
         {
             if (e.Column == 0 || e.Column == 2 || e.Column == 5)
             {
-                comparer.sortType = sortTypeUInt;
+                comparer.sortType = SortType.Uint;
             }
             else
             {
-                comparer.sortType = sortTypeString;
+                comparer.sortType = SortType.String;
             }
             if (comparer.col == e.Column)
             {
@@ -282,12 +307,12 @@ namespace aclogview
         {
             public int col;
             public bool reverse;
-            public string sortType;
+            public SortType sortType;
 
             public int Compare(ListViewItem x, ListViewItem y)
             {
                 int result = 0;
-                if (sortType == sortTypeUInt)
+                if (sortType == SortType.Uint)
                 {
                     result = CompareUInt(x.SubItems[col].Text, y.SubItems[col].Text);
                 }
@@ -327,219 +352,107 @@ namespace aclogview
 
         private void updateText()
         {
-            textBox_PacketData.Clear();
+            hexBox1.ByteProvider = new DynamicByteProvider(new byte[] { });
 
             if (listView_Packets.SelectedIndices.Count > 0)
             {
                 PacketRecord record = records[Int32.Parse(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
                 byte[] data = record.data;
 
-                if (checkBox_useHighlighting.Checked && !loadedAsMessages) {
+                if (checkBox_useHighlighting.Checked && !loadedAsMessages)
+                {
+                    hexBox1.SuspendLayout();
+                    int dataConsumed = 0;
                     int fragStartPos = 20 + record.optionalHeadersLen;
                     int curFrag = 0;
-                    int curLine = 0;
-                    int dataConsumed = 0;
+
+                    int selectedIndex = -1;
+                    TreeNode selectedNode = treeView_ParsedData.SelectedNode;
+                    if (selectedNode != null)
+                    {
+                        while (selectedNode.Parent != null)
+                        {
+                            selectedNode = selectedNode.Parent;
+                        }
+                        selectedIndex = selectedNode.Index;
+                    }
+
                     while (dataConsumed < data.Length)
                     {
-                        textBox_PacketData.SelectionColor = Color.Black;
-                        textBox_PacketData.AppendText(string.Format("{0:X4}  ", curLine));
-
-                        int lineFragStartPos = fragStartPos;
-                        int linecurFrag = curFrag;
-
-                        int hexIndex = 0;
-                        for (; hexIndex < Math.Min(16, data.Length - dataConsumed); ++hexIndex)
+                        if (dataConsumed < 20)
                         {
-                            if (hexIndex == 8)
+                            // Protocol header
+                            var protocolHeader = new byte[20];
+                            Array.Copy(data, protocolHeader, 20);
+                            hexBox1.ByteProvider.InsertBytes(dataConsumed, protocolHeader, Color.Blue, Color.White);
+                            dataConsumed += 20;
+                        }
+                        else if (dataConsumed < (20 + record.optionalHeadersLen))
+                        {
+                            // Optional headers
+                            int headerSize = record.optionalHeadersLen;
+                            if (20 + record.optionalHeadersLen >= record.data.Length)
+                                headerSize = record.data.Length - 20;
+                            var optionalHeaders = new byte[headerSize];
+                            Array.Copy(data, 20, optionalHeaders, 0, headerSize);
+                            hexBox1.ByteProvider.InsertBytes(dataConsumed, optionalHeaders, Color.Green, Color.White);
+                            dataConsumed += headerSize;
+                        }
+                        else if (record.frags.Count > 0)
+                        {
+                            if (curFrag < record.frags.Count)
                             {
-                                textBox_PacketData.AppendText(" ");
-                            }
-
-                            int dataIndex = dataConsumed + hexIndex;
-
-                            int selectedIndex = -1;
-                            TreeNode selectedNode = treeView_ParsedData.SelectedNode;
-                            if (selectedNode != null)
-                            {
-                                while (selectedNode.Parent != null)
+                                int fragCurPos = dataConsumed - fragStartPos;
+                                if (fragCurPos < 16)
                                 {
-                                    selectedNode = selectedNode.Parent;
-                                }
-                                selectedIndex = selectedNode.Index;
-                            }
-
-                            // Default color
-                            textBox_PacketData.SelectionColor = Color.Red;
-                            textBox_PacketData.SelectionBackColor = Color.White;
-
-                            if (dataIndex < 20)
-                            {
-                                // Protocol header
-                                textBox_PacketData.SelectionColor = Color.Blue;
-                            }
-                            else if (dataIndex < 20 + record.optionalHeadersLen)
-                            {
-                                // Optional headers
-                                textBox_PacketData.SelectionColor = Color.Green;
-                            } else if (record.frags.Count > 0) {
-                                if (curFrag < record.frags.Count) {
-                                    int fragCurPos = dataIndex - fragStartPos;
-                                    if (fragCurPos < 16)
-                                    {
-                                        // Fragment header
-                                        textBox_PacketData.SelectionColor = Color.Magenta;
-                                    } else if (fragCurPos == (16 + record.frags[curFrag].dat_.Length)) {
-                                        // Next fragment
-                                        fragStartPos = dataIndex;
-                                        curFrag++;
-                                        textBox_PacketData.SelectionColor = Color.Magenta;
-                                    }
-                                    else
-                                    {
-                                        // Fragment data
-                                        textBox_PacketData.SelectionColor = Color.Black;
-                                    }
-
+                                    // Fragment header
                                     if (selectedIndex == curFrag)
                                     {
-                                        textBox_PacketData.SelectionBackColor = Color.LightGray;
-                                    }
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Magenta, Color.LightGray);
+                                        hexBox1.Select(dataConsumed, 0);
+                                        hexBox1.ScrollByteIntoView();
+                                    } 
+                                    else
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Magenta, Color.White);
+                                    dataConsumed++;
+                                }
+                                else if (fragCurPos == (16 + record.frags[curFrag].dat_.Length))
+                                {
+                                    // Next fragment
+                                    fragStartPos = dataConsumed;
+                                    curFrag++;
+                                    if (selectedIndex == curFrag)
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Magenta, Color.LightGray);
+                                    else
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Magenta, Color.White);
+                                    dataConsumed++;
+                                }
+                                else
+                                {
+                                    // Fragment data
+                                    if (selectedIndex == curFrag)
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Black, Color.LightGray);
+                                    else
+                                        hexBox1.ByteProvider.InsertBytes(dataConsumed, new byte[] { data[dataConsumed] }, Color.Black, Color.White);
+                                    dataConsumed++;
                                 }
                             }
-
-                            textBox_PacketData.AppendText(string.Format("{0:X2} ", data[dataIndex]));
-                        }
-
-                        textBox_PacketData.SelectionBackColor = Color.White;
-                        StringBuilder spaceAligner = new StringBuilder();
-                        spaceAligner.Append(' ', 1 + (16 - hexIndex) * 3 + (hexIndex <= 8 ? 1 : 0));
-                        textBox_PacketData.AppendText(spaceAligner.ToString());
-
-                        fragStartPos = lineFragStartPos;
-                        curFrag = linecurFrag;
-
-                        for (int i = 0; i < Math.Min(16, data.Length - dataConsumed); ++i) {
-                            if (i == 8) {
-                                textBox_PacketData.AppendText(" ");
-                            }
-
-                            int dataIndex = dataConsumed + i;
-
-                            int selectedIndex = -1;
-                            TreeNode selectedNode = treeView_ParsedData.SelectedNode;
-                            if (selectedNode != null) {
-                                while (selectedNode.Parent != null) {
-                                    selectedNode = selectedNode.Parent;
-                                }
-                                selectedIndex = selectedNode.Index;
-                            }
-
-                            // Default color
-                            textBox_PacketData.SelectionColor = Color.Red;
-                            textBox_PacketData.SelectionBackColor = Color.White;
-
-                            if (dataIndex < 20) {
-                                // Protocol header
-                                textBox_PacketData.SelectionColor = Color.Blue;
-                            } else if (dataIndex < 20 + record.optionalHeadersLen) {
-                                // Optional headers
-                                textBox_PacketData.SelectionColor = Color.Green;
-                            } else if (record.frags.Count > 0) {
-                                if (curFrag < record.frags.Count) {
-                                    int fragCurPos = dataIndex - fragStartPos;
-                                    if (fragCurPos < 16)
-                                    {
-                                        // Fragment header
-                                        textBox_PacketData.SelectionColor = Color.Magenta;
-                                    } else if (fragCurPos == (16 + record.frags[curFrag].dat_.Length)) {
-                                        // Next fragment
-                                        fragStartPos = dataIndex;
-                                        curFrag++;
-                                        textBox_PacketData.SelectionColor = Color.Magenta;
-                                    } else {
-                                        // Fragment data
-                                        textBox_PacketData.SelectionColor = Color.Black;
-                                    }
-
-                                    if (selectedIndex == curFrag) {
-                                        textBox_PacketData.SelectionBackColor = Color.LightGray;
-                                    }
-                                }
-                            }
-
-                            char asChar = Convert.ToChar(data[dataIndex]);
-                            if (asChar >= ' ' && asChar <= '~') {
-                                textBox_PacketData.AppendText(Char.ToString(asChar));
-                            } else {
-                                textBox_PacketData.AppendText(".");
-                            }
-                        }
-
-                        textBox_PacketData.AppendText("\n");
-
-                        dataConsumed += 16;
-                        curLine++;
-                    }
-                } else {
-                    StringBuilder strBuilder = new StringBuilder();
-                    StringBuilder hexBuilder = new StringBuilder();
-                    StringBuilder asciiBuilder = new StringBuilder();
-                    int wrapCounter = 0;
-                    for (int i = 0; i < data.Length; ++i) {
-                        if (wrapCounter == 0) {
-                            strBuilder.Append(string.Format("{0:X4}  ", i));
-                        }
-
-                        hexBuilder.Append(string.Format("{0:X2} ", data[i]));
-
-                        char asChar = Convert.ToChar(data[i]);
-                        if (asChar >= ' ' && asChar <= '~') {
-                            asciiBuilder.Append(asChar);
-                        } else {
-                            asciiBuilder.Append('.');
-                        }
-
-                        wrapCounter++;
-                        if (wrapCounter == 8) {
-                            hexBuilder.Append(' ');
-                            asciiBuilder.Append(' ');
-                        } else if (wrapCounter == 16) {
-                            strBuilder.Append(hexBuilder.ToString());
-                            hexBuilder.Clear();
-
-                            strBuilder.Append(' ');
-
-                            strBuilder.Append(asciiBuilder.ToString());
-                            asciiBuilder.Clear();
-
-                            strBuilder.Append(Environment.NewLine);
-
-                            wrapCounter = 0;
                         }
                     }
-
-                    if (wrapCounter != 0) {
-                        int spacesToAppend = (16 - wrapCounter) * 3;
-                        if (wrapCounter < 8) {
-                            spacesToAppend++;
-                        }
-
-                        hexBuilder.Append(' ', spacesToAppend);
-
-                        strBuilder.Append(hexBuilder.ToString());
-
-                        strBuilder.Append(' ');
-
-                        strBuilder.Append(asciiBuilder.ToString());
-                    }
-
-                    textBox_PacketData.Text = strBuilder.ToString();
+                    hexBox1.ResumeLayout();
+                }
+                else
+                {
+                    hexBox1.ByteProvider = new DynamicByteProvider(data);
                 }
             }
         }
 
         private void updateTree() {
             treeView_ParsedData.Nodes.Clear();
+            contextList.Clear();
+            nodeIndex = 0;
+            dataIndex = 0;
 
             if (listView_Packets.SelectedIndices.Count > 0) {
                 PacketRecord record = records[Int32.Parse(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
@@ -655,6 +568,16 @@ namespace aclogview
         private void treeView_ParsedData_AfterSelect(object sender, TreeViewEventArgs e)
         {
             updateText();
+            if (contextList.Count > 0 && loadedAsMessages)
+            {
+                if (e.Node != null)
+                {
+                    int selectedNodeIndex = Convert.ToInt32(e.Node.Tag);
+                    bool indexIsPresent = contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
+                    if (indexIsPresent)
+                        hexBox1.Select(c.startPosition, c.length);
+                }
+            }
         }
 
         private void openPcap(bool asMessages)
@@ -671,7 +594,7 @@ namespace aclogview
             loadPcap(openFile.FileName, asMessages);
         }
 
-        private void menuItem_Open_Click(object sender, EventArgs e)
+        private void menuItem_OpenAsFragments_Click(object sender, EventArgs e)
         {
             openPcap(false);
         }
@@ -681,7 +604,7 @@ namespace aclogview
             openPcap(true);
         }
 
-        private void mnuItem_EditPreviousHighlightedRow_Click(object sender, EventArgs e)
+        private void menuItem_EditPreviousHighlightedRow_Click(object sender, EventArgs e)
         {
             if (listView_Packets.TopItem == null)
                 return;
@@ -712,7 +635,7 @@ namespace aclogview
             lblTracker.Text = "Viewing #" + listView_Packets.FocusedItem.Index;
         }
 
-        private void mnuItem_EditNextHighlightedRow_Click(object sender, EventArgs e)
+        private void menuItem_EditNextHighlightedRow_Click(object sender, EventArgs e)
         {
             if (listView_Packets.TopItem == null)
                 return;
@@ -933,13 +856,13 @@ namespace aclogview
             popup.ShowDialog();
         }
 
-        private void mnuItem_ToolFindOpcodeInFiles_Click(object sender, EventArgs e)
+        private void menuItem_ToolFindOpcodeInFiles_Click(object sender, EventArgs e)
         {
             var form = new FindOpcodeInFilesForm();
             form.Show(this);
         }
 
-        private void mnuItem_ToolFragDatListTool_Click(object sender, EventArgs e)
+        private void menuItem_ToolFragDatListTool_Click(object sender, EventArgs e)
         {
             var form = new FragDatListToolForm();
             form.Show(this);
@@ -959,7 +882,8 @@ namespace aclogview
 
         private void checkBox_useHighlighting_CheckedChanged(object sender, EventArgs e)
         {
-            updateText();
+            if (records.Count > 0)
+                updateText();
         }
 
         private void parsedContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
@@ -983,7 +907,7 @@ namespace aclogview
                             treeView_ParsedData.EndUpdate();
                             break;
                         }
-                    case "CopyCmd": {
+                    case "CopyAll": {
                             strbuilder.Clear();
                             foreach (var node in GetTreeNodes(treeView_ParsedData.Nodes))
                             {
@@ -1236,7 +1160,7 @@ namespace aclogview
             return System.Text.RegularExpressions.Regex.IsMatch(test, @"\A\b[0-9a-fA-F]+\b\Z");
         }
 
-        private void menuItem_ReOpen_Click(object sender, EventArgs e)
+        private void menuItem_ReOpenAsFragments_Click(object sender, EventArgs e)
         {
             checkBox_ShowObjects.Checked = false;
             loadPcap(pcapFilePath, false);
@@ -1321,11 +1245,11 @@ namespace aclogview
         {
             if (e.Column == 0 || e.Column == 3)
             {
-                comparer2.sortType = sortTypeUInt;
+                comparer2.sortType = SortType.Uint;
             }
             else
             {
-                comparer2.sortType = sortTypeString;
+                comparer2.sortType = SortType.String;
             }
             if (comparer2.col == e.Column)
             {
@@ -1493,24 +1417,54 @@ namespace aclogview
         {
             if (e.Button == MouseButtons.Right)
                 treeView_ParsedData.SelectedNode = e.Node;
+            // Left mouse click is already handled
+            if (contextList.Count > 0 && loadedAsMessages)
+            {
+                if (treeView_ParsedData.SelectedNode != null)
+                {
+                    int selectedNodeIndex = Convert.ToInt32(treeView_ParsedData.SelectedNode.Tag);
+                    bool indexIsPresent = contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
+                    // Only change selection if needed
+                    if (indexIsPresent && hexBox1.SelectionStart != c.startPosition & hexBox1.SelectionLength != c.length)
+                        hexBox1.Select(c.startPosition, c.length);
+                }
+            }
         }
 
         private void parsedContextMenu_Opening(object sender, CancelEventArgs e)
         {
             e.Cancel = (treeView_ParsedData.Nodes.Count == 0);
+            // Only display "Find ID in Object List" option if the list is open
             if (treeView_ParsedData.SelectedNode != null && createdListItems.Count > 0)
             {
-                parsedContextMenu.Items[3].Visible = true;
+                FindID.Visible = true;
             }
             else
             {
-                parsedContextMenu.Items[3].Visible = false;
+                FindID.Visible = false;
             }
         }
 
         private void objectsContextMenu_Opening(object sender, CancelEventArgs e)
         {
             e.Cancel = (createdListItems.Count == 0);
+        }
+
+        private void hexContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem == copyHexMenuItem)
+            {
+                hexBox1.CopyHex();
+            }
+            else if (e.ClickedItem == copyTextMenuItem)
+            {
+                hexBox1.CopyText();
+            }
+        }
+
+        private void hexContextMenu_Opening(object sender, CancelEventArgs e)
+        {
+            e.Cancel = (hexBox1.SelectionLength == 0);
         }
     }
 }
