@@ -558,16 +558,16 @@ public class CM_Movement : MessageProcessor {
     // This class does not appear in the client but is added for convenience
     public class MovementData
     {
-        public ushort server_control_timestamp;
         public ushort movement_timestamp;
+        public ushort server_control_timestamp;
         public byte autonomous;
         public MovementDataUnpack movementData_Unpack;
 
         public static MovementData read(BinaryReader binaryReader)
         {
             MovementData newObj = new MovementData();
-            newObj.server_control_timestamp = binaryReader.ReadUInt16();
             newObj.movement_timestamp = binaryReader.ReadUInt16();
+            newObj.server_control_timestamp = binaryReader.ReadUInt16();
             newObj.autonomous = binaryReader.ReadByte();
 
             Util.readToAlign(binaryReader);
@@ -578,8 +578,8 @@ public class CM_Movement : MessageProcessor {
 
         public void contributeToTreeNode(TreeNode node)
         {
-            node.Nodes.Add("server_control_timestamp = " + server_control_timestamp);
             node.Nodes.Add("movement_timestamp = " + movement_timestamp);
+            node.Nodes.Add("server_control_timestamp = " + server_control_timestamp);
             node.Nodes.Add("autonomous = " + autonomous);
             movementData_Unpack.contributeToTreeNode(node);
         }

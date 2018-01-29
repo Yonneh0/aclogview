@@ -1,3 +1,7 @@
+### 2018-01-29
+[Dworkin]
+* Put timestamps in MovementData in the correct order.
+
 ### 2018-01-26
 [Slushnas]
 ##### Interface Changes
