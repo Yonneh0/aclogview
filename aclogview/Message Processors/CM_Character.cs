@@ -613,7 +613,7 @@ public class CM_Character : MessageProcessor {
         public byte m_numBuckets;
         public byte m_numElements;
         public byte boolPropertyValue;
-        uint num_properties;
+        public uint num_properties;
         public List<BaseProperty> PropertyCollectionValue;
         public int Length;
 
@@ -792,8 +792,9 @@ public class CM_Character : MessageProcessor {
                     ContextInfo.AddToList(new ContextInfo { length = 4 });
                     for (int i = 0; i < PropertyCollectionValue.Count; i++)
                     {
-                        // Note: num_properties SHOULD equal 17 for the number of client UI elements
-                        // but let's check just to be sure.
+                        // Note: num_properties usually equals 17 for the number of client UI elements
+                        // but let's check just to be sure. It's possible we don't need to to this check as
+                        // each property index may correspond to the same UIElement index.
                         if (num_properties == 17)
                         {
                             TreeNode PropertyNode = node.Nodes.Add($"{PropertyCollectionValue[i].key} (UIElement: {(UIElement)i+1})");
