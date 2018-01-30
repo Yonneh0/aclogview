@@ -2,6 +2,9 @@
 [Dworkin]
 * Put timestamps in MovementData in the correct order.
 
+[Slushnas]
+* Added context info to CM_Inventory and made a couple minor adjustments to CM_Character.
+
 ### 2018-01-26
 [Slushnas]
 ##### Interface Changes

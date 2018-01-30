@@ -81,6 +81,7 @@ namespace aclogview
             messageProcessors.Add(new CM_Game());
             messageProcessors.Add(new CM_House());
             messageProcessors.Add(new CM_Inventory());
+            ciSupportedMessageProcessors.Add(typeof(CM_Inventory).Name);
             messageProcessors.Add(new CM_Item());
             messageProcessors.Add(new CM_Login());
             ciSupportedMessageProcessors.Add(typeof(CM_Login).Name);
