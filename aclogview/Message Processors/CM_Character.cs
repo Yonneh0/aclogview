@@ -793,7 +793,7 @@ public class CM_Character : MessageProcessor {
                     for (int i = 0; i < PropertyCollectionValue.Count; i++)
                     {
                         // Note: num_properties usually equals 17 for the number of client UI elements
-                        // but let's check just to be sure. It's possible we don't need to to this check as
+                        // but let's check just to be sure. It's possible we don't need to do this check as
                         // each property index may correspond to the same UIElement index.
                         if (num_properties == 17)
                         {
