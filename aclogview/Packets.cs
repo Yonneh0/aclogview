@@ -55,6 +55,7 @@ public class Util {
             readers.Add(typeof(CM_Login.InventoryPlacement), r => CM_Login.InventoryPlacement.read(r));
             readers.Add(typeof(CM_House.HousePayment), r => CM_House.HousePayment.read(r));
             readers.Add(typeof(CM_Inventory.SalvageResult), r => CM_Inventory.SalvageResult.read(r));
+            readers.Add(typeof(CM_Writing.PageData), r => CM_Writing.PageData.read(r));
         }
     }
 
@@ -390,15 +391,15 @@ public class Frame {
 
     public void contributeToTreeNode(TreeNode node) {
         node.Nodes.Add("m_fOrigin = " + m_fOrigin);
-        ContextInfo.AddToList(new ContextInfo { length = 12 });
+        ContextInfo.AddToList(new ContextInfo { Length = 12 });
         node.Nodes.Add("qw = " + qw);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("qx = " + qx);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("qy = " + qy);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("qz = " + qz);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("m_fl2gv = " + m_fl2gv);
         ContextInfo.AddToList(new ContextInfo {}, updateDataIndex: false);
     }
@@ -429,9 +430,9 @@ public class Position {
 
     public void contributeToTreeNode(TreeNode node) {
         node.Nodes.Add("objcell_id = 0x" + objcell_id.ToString("X8"));
-        ContextInfo.AddToList(new ContextInfo { length = 4, dataType = DataType.CellID } );
+        ContextInfo.AddToList(new ContextInfo { DataType = DataType.CellID } );
         TreeNode frameNode = node.Nodes.Add("frame = ");
-        ContextInfo.AddToList(new ContextInfo { length = frame.Length }, updateDataIndex: false);
+        ContextInfo.AddToList(new ContextInfo { Length = frame.Length }, updateDataIndex: false);
         frame.contributeToTreeNode(frameNode);
     }
 }
@@ -460,17 +461,17 @@ public class Skill {
 
     public void contributeToTreeNode(TreeNode node) {
         node.Nodes.Add("_level_from_pp = " + _level_from_pp);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_sac = " + _sac);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_pp = " + _pp);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_init_level = " + _init_level);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_resistance_of_last_check = " + _resistance_of_last_check);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_last_used_time = " + _last_used_time);
-        ContextInfo.AddToList(new ContextInfo { length = 8 });
+        ContextInfo.AddToList(new ContextInfo { Length = 8 });
     }
 }
 
@@ -490,11 +491,11 @@ public class Attribute {
 
     public void contributeToTreeNode(TreeNode node) {
         node.Nodes.Add("_level_from_cp = " + _level_from_cp);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_init_level = " + _init_level);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_cp_spent = " + _cp_spent);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
     }
 }
 
@@ -516,12 +517,12 @@ public class SecondaryAttribute {
 
     public void contributeToTreeNode(TreeNode node) {
         node.Nodes.Add("_level_from_cp = " + _level_from_cp);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_init_level = " + _init_level);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_cp_spent = " + _cp_spent);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
         node.Nodes.Add("_current_level = " + _current_level);
-        ContextInfo.AddToList(new ContextInfo { length = 4 });
+        ContextInfo.AddToList(new ContextInfo { Length = 4 });
     }
 }

@@ -52,9 +52,6 @@ namespace aclogview
             String
         }
 
-        public static Dictionary<int, ContextInfo> contextList = new Dictionary<int, ContextInfo>();
-        public static int nodeIndex = 0;
-        public static int dataIndex = 0;
         // TODO: Remove after context info is added to all message processors
         public List<string> ciSupportedMessageProcessors = new List<string>();
 
@@ -96,7 +93,9 @@ namespace aclogview
             messageProcessors.Add(new CM_Train());
             messageProcessors.Add(new CM_Vendor());
             messageProcessors.Add(new CM_Writing());
+            ciSupportedMessageProcessors.Add(typeof(CM_Writing).Name);
             messageProcessors.Add(new Proto_UI());
+            ciSupportedMessageProcessors.Add(typeof(Proto_UI).Name);
             Globals.UseHex = checkBoxUseHex.Checked;
 
             // Initialize our highlight mode
@@ -458,9 +457,7 @@ namespace aclogview
 
         private void updateTree() {
             treeView_ParsedData.Nodes.Clear();
-            contextList.Clear();
-            nodeIndex = 0;
-            dataIndex = 0;
+            ContextInfo.Reset();
 
             if (listView_Packets.SelectedIndices.Count > 0) {
                 PacketRecord record = records[Int32.Parse(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[0].Text)];
@@ -484,7 +481,7 @@ namespace aclogview
                                 // TODO: Remove after all message processors have context info
                                 if (!ciSupportedMessageProcessors.Contains(messageProcessor.ToString()))
                                 {
-                                    contextList.Clear();
+                                    ContextInfo.Reset();
                                 }
                                 if (messageDataReader.BaseStream.Position != messageDataReader.BaseStream.Length) {
                                     treeView_ParsedData.Nodes.Add(new TreeNode("WARNING: Packet not fully read!"));
@@ -585,14 +582,14 @@ namespace aclogview
             // so we do need to call it.
             if (!loadedAsMessages)
                 updateText();
-            if (contextList.Count > 0 && loadedAsMessages)
+            if (ContextInfo.contextList.Count > 0 && loadedAsMessages)
             {
                 if (e.Node != null)
                 {
                     int selectedNodeIndex = Convert.ToInt32(e.Node.Tag);
-                    bool indexIsPresent = contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
+                    bool indexIsPresent = ContextInfo.contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
                     if (indexIsPresent)
-                        hexBox1.Select(c.startPosition, c.length);
+                        hexBox1.Select(c.StartPosition, c.Length);
                 }
             }
         }
@@ -910,10 +907,11 @@ namespace aclogview
                 switch (clickedItem) {
                     case "ExpandAll":
                         {
-                            var topNode = treeView_ParsedData.TopNode;
+                            var currentNodeIndex = treeView_ParsedData.SelectedNode;
                             treeView_ParsedData.BeginUpdate();
                             treeView_ParsedData.Nodes[0].ExpandAll();
-                            treeView_ParsedData.TopNode = topNode;
+                            treeView_ParsedData.TopNode = currentNodeIndex;
+                            currentNodeIndex.EnsureVisible();
                             treeView_ParsedData.EndUpdate();
                             break;
                         }
@@ -921,6 +919,8 @@ namespace aclogview
                         {
                             treeView_ParsedData.BeginUpdate();
                             treeView_ParsedData.Nodes[0].Collapse(false);
+                            treeView_ParsedData.SelectedNode = null;
+                            treeView_ParsedData.SelectedNode = treeView_ParsedData.TopNode;
                             treeView_ParsedData.EndUpdate();
                             break;
                         }
@@ -1435,15 +1435,15 @@ namespace aclogview
             if (e.Button == MouseButtons.Right)
                 treeView_ParsedData.SelectedNode = e.Node;
             // Left mouse click is already handled
-            if (contextList.Count > 0 && loadedAsMessages)
+            if (ContextInfo.contextList.Count > 0 && loadedAsMessages)
             {
                 if (treeView_ParsedData.SelectedNode != null)
                 {
                     int selectedNodeIndex = Convert.ToInt32(treeView_ParsedData.SelectedNode.Tag);
-                    bool indexIsPresent = contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
+                    bool indexIsPresent = ContextInfo.contextList.TryGetValue(selectedNodeIndex, out ContextInfo c);
                     // Only change selection if needed
-                    if (indexIsPresent && hexBox1.SelectionStart != c.startPosition & hexBox1.SelectionLength != c.length)
-                        hexBox1.Select(c.startPosition, c.length);
+                    if (indexIsPresent && hexBox1.SelectionStart != c.StartPosition & hexBox1.SelectionLength != c.Length)
+                        hexBox1.Select(c.StartPosition, c.Length);
                 }
             }
         }
