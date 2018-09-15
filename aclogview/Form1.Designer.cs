@@ -38,6 +38,7 @@ namespace aclogview {
             this.columnHeader13 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader15 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.columnHeader14 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
+            this.columnHeader16 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
             this.listviewContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.copyTimeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.listView_CreatedObjects = new System.Windows.Forms.ListView();
@@ -183,7 +184,8 @@ namespace aclogview {
             this.HexOpCode,
             this.columnHeader13,
             this.columnHeader15,
-            this.columnHeader14});
+            this.columnHeader14,
+            this.columnHeader16});
             this.listView_Packets.ContextMenuStrip = this.listviewContextMenu;
             this.listView_Packets.Dock = System.Windows.Forms.DockStyle.Fill;
             this.listView_Packets.FullRowSelect = true;
@@ -251,6 +253,11 @@ namespace aclogview {
             // columnHeader14
             // 
             this.columnHeader14.Text = "Iteration";
+            //
+            // columnHeader16
+            //
+            this.columnHeader16.Text = "Server Port";
+            this.columnHeader16.Width = 65;
             // 
             // listviewContextMenu
             // 
@@ -978,6 +985,7 @@ namespace aclogview {
         private System.Windows.Forms.ColumnHeader columnHeader13;
         private System.Windows.Forms.ColumnHeader columnHeader15;
         private System.Windows.Forms.ColumnHeader columnHeader14;
+        private System.Windows.Forms.ColumnHeader columnHeader16;
     }
 }
 
