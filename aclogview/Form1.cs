@@ -50,6 +50,19 @@ namespace aclogview
         private string textModeCI = "Text (Case-Insensitive)";
         private string uintMode = "UINT32";
 
+        // Default column widths
+        private int defSendReceiveWidth;
+        private int defTimeWidth;
+        private int defHeadersWidth;
+        private int defTypeWidth;
+        private int defSizeWidth;
+        private int defExtraInfoWidth;
+        private int defOpcodeWidth;
+        private int defPackSeqWidth;
+        private int defQueueWidth;
+        private int defIterationWidth;
+        private int defServerPortWidth;
+
         public enum SortType
         {
             Uint,
@@ -74,6 +87,8 @@ namespace aclogview
 
         private async void Form1_Load(object sender, EventArgs e)
         {
+            listView_Packets.InitializeHeaderContextMenu(columnsContextMenu);
+
             Util.initReaders();
             messageProcessors.Add(new CM_Admin());
             ciSupportedMessageProcessors.Add(typeof(CM_Admin).Name);
@@ -82,6 +97,7 @@ namespace aclogview
             messageProcessors.Add(new CM_Allegiance());
             messageProcessors.Add(new CM_Character());
             messageProcessors.Add(new CM_Combat());
+            ciSupportedMessageProcessors.Add(typeof(CM_Combat).Name);
             messageProcessors.Add(new CM_Communication());
             messageProcessors.Add(new CM_Death());
             messageProcessors.Add(new CM_Examine());
@@ -91,12 +107,14 @@ namespace aclogview
             messageProcessors.Add(new CM_Inventory());
             ciSupportedMessageProcessors.Add(typeof(CM_Inventory).Name);
             messageProcessors.Add(new CM_Item());
+            ciSupportedMessageProcessors.Add(typeof(CM_Item).Name);
             messageProcessors.Add(new CM_Login());
             ciSupportedMessageProcessors.Add(typeof(CM_Login).Name);
             messageProcessors.Add(new CM_Magic());
             ciSupportedMessageProcessors.Add(typeof(CM_Magic).Name);
             messageProcessors.Add(new CM_Misc());
             messageProcessors.Add(new CM_Movement());
+            ciSupportedMessageProcessors.Add(typeof(CM_Movement).Name);
             messageProcessors.Add(new CM_Physics());
             messageProcessors.Add(new CM_Qualities());
             ciSupportedMessageProcessors.Add(typeof(CM_Qualities).Name);
@@ -158,6 +176,8 @@ namespace aclogview
 
             setupTimeColumn();
 
+            fillDefaultColumnWidths();
+
             var pDocs = new ProtocolDocs();
             if (pDocs.IsTimeForUpdateCheck())
             {
@@ -215,7 +235,8 @@ namespace aclogview
                 {
                     ListViewItem newItem = new ListViewItem(record.index.ToString());
                     newItem.SubItems.Add(record.isSend ? "Send" : "Recv");
-                    newItem.SubItems.Add(GetTimestampString(record));
+                    // Time column is processed in listView_Packets_RetrieveVirtualItem
+                    newItem.SubItems.Add(string.Empty);
                     newItem.SubItems.Add(record.packetHeadersStr);
                     newItem.SubItems.Add(record.packetTypeStr);                   
                     newItem.SubItems.Add(record.data.Length.ToString());
@@ -320,18 +341,17 @@ namespace aclogview
 
         private void listView_Packets_ColumnClick(object sender, ColumnClickEventArgs e)
         {
-            if (e.Column == 0 || e.Column == 2 || e.Column == 5 || e.Column == 8 || e.Column == 10)
+            if (e.Column == lineNumberColumn.Index || e.Column == timeColumn.Index
+                    || e.Column == sizeColumn.Index || e.Column == packSeqColumn.Index
+                    || e.Column == iterationColumn.Index)
                 comparer.sortType = SortType.Uint;
             else
                 comparer.sortType = SortType.String;
-            if (comparer.col == e.Column || comparer.col == 0 && e.Column == 2)
+            if (comparer.col == e.Column || comparer.col == 0 && e.Column == timeColumn.Index)
             {
                 comparer.reverse = !comparer.reverse;
             }
-            if (e.Column == 2)
-                comparer.col = 0;
-            else
-                comparer.col = e.Column;
+            comparer.col = e.Column == timeColumn.Index ? 0 : e.Column;
             Cursor.Current = Cursors.WaitCursor;
             packetListItems.Sort(comparer);
             Cursor.Current = Cursors.Default;
@@ -649,14 +669,15 @@ namespace aclogview
                 if (Settings.Default.PacketsListviewTimeFormat == (byte)TimeFormat.LocalTime)
                     return Utility.EpochTimeToLocalTime(microseconds);
 
-                return $"{microseconds / (decimal)1000000}";
+                var time = $"{microseconds / (decimal) 1000000:F6}";
+                return time;
             }
             else
             {
                 if (Settings.Default.PacketsListviewTimeFormat == (byte)TimeFormat.LocalTime)
                     return Utility.EpochTimeToLocalTime(record.tsSec, record.tsUsec);
 
-                return record.tsSec + $".{record.tsUsec}";
+                return $"{record.tsSec}." + $"{record.tsUsec:D6}";
             }
         }
 
@@ -1012,7 +1033,7 @@ namespace aclogview
                 switch (clickedItem) {
                     case "ExpandAll":
                         {
-                            var currentNodeIndex = treeView_ParsedData.SelectedNode;
+                            var currentNodeIndex = treeView_ParsedData.SelectedNode ?? treeView_ParsedData.Nodes[0];
                             treeView_ParsedData.BeginUpdate();
                             treeView_ParsedData.Nodes[0].ExpandAll();
                             treeView_ParsedData.TopNode = currentNodeIndex;
@@ -1350,7 +1371,7 @@ namespace aclogview
 					{
 						var messageCode = fragDataReader.ReadUInt32();
 
-						if (messageCode == 0xF745) // Create Object
+						if (messageCode == (uint)PacketOpcode.Evt_Physics__CreateObject_ID)
 						{
 							hits++;
 							var parsed = CM_Physics.CreateObject.read(fragDataReader);
@@ -1360,9 +1381,6 @@ namespace aclogview
 							lvi.SubItems.Add(parsed.wdesc._name.ToString());
 							lvi.SubItems.Add(parsed.wdesc._wcid.ToString());
 							lvi.SubItems.Add(parsed.wdesc._type.ToString());
-                            lvi.SubItems.Add(record.Seq.ToString());
-                            lvi.SubItems.Add(record.Queue.ToString());
-                            lvi.SubItems.Add(record.Iteration.ToString());
                             createdListItems.Add(lvi);
 						}
 					}
@@ -1584,7 +1602,7 @@ namespace aclogview
 
         private void objectsContextMenu_Opening(object sender, CancelEventArgs e)
         {
-            e.Cancel = (createdListItems.Count == 0);
+            e.Cancel = (createdListItems.Count == 0 || listView_CreatedObjects.SelectedIndices.Count == 0);
         }
 
         private void hexContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
@@ -1688,19 +1706,18 @@ namespace aclogview
             var timeFormat = Settings.Default.PacketsListviewTimeFormat;
             if (timeFormat == (byte)TimeFormat.EpochTime)
             {
-                listView_Packets.Columns[2].Text = "Epoch Time (s)";
-                listView_Packets.Columns[2].Width = 120;
+                timeColumn.Text = "Epoch Time (s)";
+                if (timeMenuItem.Checked)
+                    timeColumn.Width = 120;
+                defTimeWidth = 120;
             }
             else if (timeFormat == (byte)TimeFormat.LocalTime)
             {
-                listView_Packets.Columns[2].Text = "Local Time";
-                listView_Packets.Columns[2].Width = 175;
+                timeColumn.Text = "Local Time";
+                if (timeMenuItem.Checked)
+                    timeColumn.Width = 175;
+                defTimeWidth = 175;
             }
-        }
-
-        private void listviewContextMenu_Opening(object sender, CancelEventArgs e)
-        {
-            e.Cancel = (listView_Packets.SelectedIndices.Count == 0);
         }
 
         private void listviewContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
@@ -1710,6 +1727,93 @@ namespace aclogview
             if (clickedItem == copyTimeMenuItem)
             {
                 Clipboard.SetText(packetListItems[listView_Packets.SelectedIndices[0]].SubItems[2].Text);
+            }
+        }
+
+        private void listView_Packets_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (listView_Packets.SelectedIndices.Count == 0)
+                return;
+
+            if (e.Button == MouseButtons.Right)
+            {
+                var location = listView_Packets.PointToScreen(new Point(e.X, e.Y));
+                listviewContextMenu.Show(location);
+            }
+        }
+
+        private void fillDefaultColumnWidths()
+        {
+            defSendReceiveWidth = sendReceiveColumn.Width;
+            defTimeWidth = timeColumn.Width;
+            defHeadersWidth = headersColumn.Width;
+            defTypeWidth = typeColumn.Width;
+            defSizeWidth = sizeColumn.Width;
+            defExtraInfoWidth = extraInfoColumn.Width;
+            defOpcodeWidth = hexOpcodeColumn.Width;
+            defPackSeqWidth = packSeqColumn.Width;
+            defQueueWidth = queueColumn.Width;
+            defIterationWidth = iterationColumn.Width;
+            defServerPortWidth = serverPortColumn.Width;
+        }
+
+        private void columnsContextMenu_ItemClicked(object sender, ToolStripItemClickedEventArgs e)
+        {
+            if (e.ClickedItem == sendReceiveMenuItem)
+            {
+                sendReceiveColumn.Width = sendReceiveMenuItem.CheckState == CheckState.Unchecked ? defSendReceiveWidth : 0;
+            }
+            else if (e.ClickedItem == timeMenuItem)
+            {
+                timeColumn.Width = timeMenuItem.CheckState == CheckState.Unchecked ? defTimeWidth : 0;
+            }
+            else if (e.ClickedItem == headersMenuItem)
+            {
+                headersColumn.Width = headersMenuItem.CheckState == CheckState.Unchecked ? defHeadersWidth : 0;
+            }
+            else if (e.ClickedItem == typeMenuItem)
+            {
+                typeColumn.Width = typeMenuItem.CheckState == CheckState.Unchecked ? defTypeWidth : 0;
+            }
+            else if (e.ClickedItem == sizeMenuItem)
+            {
+                sizeColumn.Width = sizeMenuItem.CheckState == CheckState.Unchecked ? defSizeWidth : 0;
+            }
+            else if (e.ClickedItem == extraInfoMenuItem)
+            {
+                extraInfoColumn.Width = extraInfoMenuItem.CheckState == CheckState.Unchecked ? defExtraInfoWidth : 0;
+            }
+            else if (e.ClickedItem == opcodeMenuItem)
+            {
+                hexOpcodeColumn.Width = opcodeMenuItem.CheckState == CheckState.Unchecked ? defOpcodeWidth : 0;
+            }
+            else if (e.ClickedItem == packSeqMenuItem)
+            {
+                packSeqColumn.Width = packSeqMenuItem.CheckState == CheckState.Unchecked ? defPackSeqWidth : 0;
+            }
+            else if (e.ClickedItem == queueMenuItem)
+            {
+                queueColumn.Width = queueMenuItem.CheckState == CheckState.Unchecked ? defQueueWidth : 0;
+            }
+            else if (e.ClickedItem == iterationMenuItem)
+            {
+                iterationColumn.Width = iterationMenuItem.CheckState == CheckState.Unchecked ? defIterationWidth : 0;
+            }
+            else if (e.ClickedItem == serverPortMenuItem)
+            {
+                serverPortColumn.Width = serverPortMenuItem.CheckState == CheckState.Unchecked ? defServerPortWidth : 0;
+            }
+        }
+
+        private void listView_CreatedObjects_MouseClick(object sender, MouseEventArgs e)
+        {
+            if (listView_CreatedObjects.SelectedIndices.Count == 0)
+                return;
+
+            if (e.Button == MouseButtons.Right)
+            {
+                var location = listView_CreatedObjects.PointToScreen(new Point(e.X, e.Y));
+                objectsContextMenu.Show(location);
             }
         }
     }
