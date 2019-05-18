@@ -61,6 +61,7 @@ public class Util {
             readers.Add(typeof(CM_House.HousePayment), r => CM_House.HousePayment.read(r));
             readers.Add(typeof(CM_Inventory.SalvageResult), r => CM_Inventory.SalvageResult.read(r));
             readers.Add(typeof(CM_Writing.PageData), r => CM_Writing.PageData.read(r));
+            readers.Add(typeof(CM_House.GuestInfo), r => CM_House.GuestInfo.read(r));
         }
     }
 
@@ -102,8 +103,7 @@ public class Util {
                 str += Encoding.Unicode.GetString(binaryReader.ReadBytes(2));
             }
         }
-        // Note: I had to comment this out to avoid alignment issues. (Slushnas)
-        //readToAlign(binaryReader);
+
         return str;
     }
 
