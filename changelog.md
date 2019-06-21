@@ -1,3 +1,19 @@
+### 2019-06-20
+[Mag-nus]
+* The logic for OpcodeFinder and TextSearchers has been separated from the UI
+* IpHeader added to PacketRecord
+* Added ServerList which includes retail server information
+* ACE dll's added to the /lib folder
+* aclogview/ACE Helpers/ created
+* Created a framework to run multiple pcap scrapers simultaneously
+* Pcap Scraper includes a "Exclude Non-Retail Pcaps" option
+* Menu item "Heatmap" has been removed and can now be run by menu item "Pcap Scraper"
+* Menu item "Packet Type Counts" has been removed and can now be run by menu item "Pcap Scraper"
+* ServerAddressScraper added
+* PacketSizeScraperC2S added
+* PlayerExporter added
+* Account/CharacterList exporter added
+
 ### 2019-05-18
 [Slushnas]
 * Fixed display issue with AllegianceInfoResponseEvent.

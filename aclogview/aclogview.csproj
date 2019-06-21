@@ -37,6 +37,18 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ACE.Adapter">
+      <HintPath>lib\ACE.Adapter.dll</HintPath>
+    </Reference>
+    <Reference Include="ACE.Common">
+      <HintPath>lib\ACE.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="ACE.Database">
+      <HintPath>lib\ACE.Database.dll</HintPath>
+    </Reference>
+    <Reference Include="ACE.Entity">
+      <HintPath>lib\ACE.Entity.dll</HintPath>
+    </Reference>
     <Reference Include="CommandLine, Version=1.9.71.2, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
       <HintPath>..\packages\CommandLineParser.1.9.71\lib\net45\CommandLine.dll</HintPath>
     </Reference>
@@ -45,6 +57,9 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -56,7 +71,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ACETeleloc.cs" />
+    <Compile Include="ACE Helpers\ACETeleloc.cs" />
+    <Compile Include="ACE Helpers\ACEBiotaCreator.cs" />
     <Compile Include="BufferedTreeView.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -72,6 +88,8 @@
     <Compile Include="GotoLine.Designer.cs">
       <DependentUpon>GotoLine.cs</DependentUpon>
     </Compile>
+    <Compile Include="Server.cs" />
+    <Compile Include="ServerList.cs" />
     <Compile Include="Tools\OptionsForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -175,6 +193,24 @@
     <Compile Include="Message Processors\Proto_UI.cs" />
     <Compile Include="Enums\Spells.cs" />
     <Compile Include="Enums\StatTypes.cs" />
+    <Compile Include="Tools\Parsers\OpcodeFinder.cs" />
+    <Compile Include="Tools\Scrapers\AccountExporter.cs" />
+    <Compile Include="Tools\Scrapers\HeatMapGenerator.cs" />
+    <Compile Include="Tools\Scrapers\PacketSizeScraperC2S.cs" />
+    <Compile Include="Tools\Parsers\SampleParser.cs" />
+    <Compile Include="Tools\Parsers\TextSearcher.cs" />
+    <Compile Include="Tools\Scrapers\PacketTypesCountScraper.cs" />
+    <Compile Include="Tools\Scrapers\PlayerExporter.cs" />
+    <Compile Include="Tools\Scrapers\Scraper.cs" />
+    <Compile Include="Tools\Scrapers\ServerAddressScraper.cs" />
+    <Compile Include="Tools\Scrapers\VendorBuySellAmountScraperC2S.cs" />
+    <Compile Include="Tools\PcapScraperForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Tools\PcapScraperForm.Designer.cs">
+      <DependentUpon>PcapScraperForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Tools\ToolUtil.cs" />
     <Compile Include="TreeviewState.cs" />
     <Compile Include="Tools\TextPopup.cs">
       <SubType>Form</SubType>
@@ -214,6 +250,9 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
+    <EmbeddedResource Include="Tools\PcapScraperForm.resx">
+      <DependentUpon>PcapScraperForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Tools\TextPopup.resx">
       <DependentUpon>TextPopup.cs</DependentUpon>
     </EmbeddedResource>
@@ -242,6 +281,7 @@
       <Name>Be.Windows.Forms.HexBox</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
