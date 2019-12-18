@@ -712,30 +712,30 @@ namespace aclogview
             if ((header & ACEPacketHeaderFlags.FRAG) != 0) {
                 result.Add($"FRAG");
             }
-            int headersEndAt = (int)(packetReader.BaseStream.Position - readStartPos);
-
-            //result[0] += $" {headerChecksum:X8} + {payloadChecksum:X8} =  {headerChecksum + payloadChecksum:X8} // {original:X8}";
-
+            int optionalHeaderSize = (int)(packetReader.BaseStream.Position - readStartPos);
 
             if ((header & ACEPacketHeaderFlags.EncCRC) != 0) {
                 if (CryptoValid) {
-                    if (!ValidateXORCRC(originalData,isSend,headersEndAt))
-                        result[0] = $"(INVALID XOR CRC)";
+                    int keyPos;
+                    if (isSend) keyPos = ValidateXORCRC(originalData, SendGenerator, optionalHeaderSize);
+                    else keyPos = ValidateXORCRC(originalData, RecvGenerator, optionalHeaderSize);
+                    if (keyPos == -1)
+                        result[0] = $"XOR CRC(INVALID)";
                     else {
-                        result[0] = $"(VALID XOR CRC)";
+                        result[0] = $"XOR CRC({keyPos})";
                     }
                 } else
                     result[0] = $"(? XOR CRC)";
 
             } else {
-                if (!ValidateCRC(originalData,headersEndAt))
-                    result[0] = $"(INVALID CRC)";
+                if (!ValidateCRC(originalData,optionalHeaderSize))
+                    result[0] = $"CRC(INVALID)";
                 else
-                    result[0] = $"(VALID CRC)";
+                    result[0] = $"CRC";
             }
 
             if (result.Count != 0) packetHeadersStr.Append(result.Aggregate((a, b) => a + " | " + b));
-            return (int)(packetReader.BaseStream.Position - readStartPos);
+            return optionalHeaderSize;
         }
         private static bool ValidateCRC(byte[] originalData,int headersEndAt) {
             try {
@@ -746,24 +746,20 @@ namespace aclogview
             } catch { }
             return false;
         }
-        private static bool ValidateXORCRC(byte[] originalData, bool isSend, int headersEndAt) {
-            uint original = BitConverter.ToUInt32(originalData, 0x08);
-            uint headerChecksum = CalculateHash32(originalData, 0x14);
-            uint payloadChecksum = Hash32(originalData, headersEndAt, 0x14);
-            payloadChecksum += Hash32(originalData, BitConverter.ToInt16(originalData, 0x10) - headersEndAt, 0x14 + headersEndAt);
-            uint xor;
-            for (int i = 0; i < 32; i++) {
-                try {
-                    if (isSend) xor = SendGenerator.xors[i];
-                    else xor = RecvGenerator.xors[i];
-                    if (original == (xor ^ payloadChecksum) + headerChecksum) {
-                        if (isSend) SendGenerator.Eat(xor);
-                        else RecvGenerator.Eat(xor);
-                        return true;
-                    }
-                } catch { }
-            }
-            return false;
+        private static int ValidateXORCRC(byte[] originalData, CryptoSystem cryptoSystem, int optionalHeaderSize) {
+            try {
+                uint original = BitConverter.ToUInt32(originalData, 0x08);
+                uint headerChecksum = CalculateHash32(originalData, 0x14);
+                uint payloadChecksum = Hash32(originalData, optionalHeaderSize, 0x14);
+                payloadChecksum += Hash32(originalData, BitConverter.ToInt16(originalData, 0x10) - optionalHeaderSize, 0x14 + optionalHeaderSize);
+                uint xor = (original - headerChecksum) ^ payloadChecksum; // nothing to see here, move along.
+                int keyPos = cryptoSystem.xors.IndexOf(xor);
+                if (keyPos > -1) {
+                    cryptoSystem.Eat(xor);
+                    return keyPos;
+                }
+            } catch { }
+            return -1;
         }
     }
     public class CryptoSystem {
