@@ -613,7 +613,7 @@ namespace aclogview
                 packetReader.ReadBytes(cbAuthData);
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, (int)(packetReader.BaseStream.Position - Start), 0x14 + (Start - (int)readStartPos));
 
-                result.Add($"LoginRequest({ClientVersion}[{cbAuthData}])");
+                result.Add($"LoginRequest({ClientVersion}[{cbAuthData}])"); // not parsing this, to keep usernames/passwords out of screenshots
             }
 
             if ((header & ACEPacketHeaderFlags.WorldLoginRequest) != 0) {
@@ -625,23 +625,23 @@ namespace aclogview
             if ((header & ACEPacketHeaderFlags.ConnectRequest) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double ConnectRequestServerTime = packetReader.ReadDouble();
-                ulong ConnectRequestCookie = packetReader.ReadUInt64();
+                /* ulong ConnectRequestCookie = */ packetReader.ReadUInt64();
                 uint ConnectRequestNetID = packetReader.ReadUInt32();
                 uint ConnectRequestOutgoingSeed = packetReader.ReadUInt32();
                 uint ConnectRequestIncomingSeed = packetReader.ReadUInt32();
                 /*uint ConnectRequestunk =*/ packetReader.ReadUInt32();
-                if (cryptoPair.ContainsKey(pHeader.iteration_)) {
-                    result.Add($"*** Crypto reset for existing iteration!");
-                    cryptoPair.Remove(pHeader.iteration_);
+                if (cryptoPair.ContainsKey(pHeader.recID_)) {
+                    result.Add($"Crypto reset {pHeader.recID_}");
+                    cryptoPair.Remove(pHeader.recID_); // Hello GC!
                 }
-                cryptoPair.Add(pHeader.iteration_, new CryptoPair(pHeader.iteration_, ConnectRequestIncomingSeed, ConnectRequestOutgoingSeed));
-                result.Add($"ConnectRequest(time:{Math.Round(ConnectRequestServerTime,5)},cookie:0x{ConnectRequestCookie:X16},netid:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
+                cryptoPair.Add(pHeader.recID_, new CryptoPair(pHeader.recID_, ConnectRequestIncomingSeed, ConnectRequestOutgoingSeed));
+                result.Add($"ConnectRequest(rec:{pHeader.recID_},time:{Math.Round(ConnectRequestServerTime,5)},net:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectResponse) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
-                ulong ConnectResponseCookie = packetReader.ReadUInt64();
-                result.Add($"ConnectResponse(0x{ConnectResponseCookie:X16})");
+                /* ulong ConnectResponseCookie = */ packetReader.ReadUInt64();
+                result.Add($"ConnectResponse");
             }
 
             if ((header & ACEPacketHeaderFlags.NetError) != 0) {
@@ -705,22 +705,16 @@ namespace aclogview
                 }
             }
             if ((header & ACEPacketHeaderFlags.EncCRC) != 0) {
-                if (cryptoPair.ContainsKey(pHeader.iteration_)) {
+                if (cryptoPair.ContainsKey(pHeader.recID_)) {
                     uint xor = (pHeader.checksum_ - pHeader.headerChecksum) ^ pHeader.payloadChecksum; // nothing to see here, move along.
-                    int keyPos = Crypto.ValidateXORCRC(cryptoPair[pHeader.iteration_][isSend], xor);
-                    if (keyPos == -1)
-                        result[0] = $"XOR CRC(INVALID)";
-                    else {
-                        result[0] = $"XOR CRC({keyPos})";
-                    }
-                } else
-                    result[0] = $"(? XOR CRC)";
+                    int keyPos = Crypto.ValidateXORCRC(cryptoPair[pHeader.recID_][isSend], xor);
+                    if (keyPos == -1) result[0] = $"XOR CRC(INVALID)";
+                    else result[0] = $"XOR CRC({keyPos})";
+                } else result.RemoveAt(0);  // result[0] = $"(? XOR CRC)";
 
             } else {
-                if (pHeader.checksum_ != (pHeader.headerChecksum + pHeader.payloadChecksum))
-                    result[0] = $"CRC(INVALID)";
-                else
-                    result[0] = $"CRC";
+                if (pHeader.checksum_ != (pHeader.headerChecksum + pHeader.payloadChecksum)) result[0] = $"CRC(INVALID)";
+                else result[0] = $"CRC";
             }
 
             if (result.Count != 0) packetHeadersStr.Append(result.Aggregate((a, b) => a + " | " + b));
