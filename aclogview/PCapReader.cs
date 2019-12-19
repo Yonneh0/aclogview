@@ -165,7 +165,8 @@ namespace aclogview
                     binaryReader.BaseStream.Position += recordHeader.inclLen - (binaryReader.BaseStream.Position - packetStartPos);
                 }
             }
-            cryptoSystems.Clear();
+            SendCrypto.Clear();
+            RecvCrypto.Clear();
             return results;
         }
 
@@ -253,7 +254,8 @@ namespace aclogview
 
                 binaryReader.BaseStream.Position += blockHeader.blockTotalLength - (binaryReader.BaseStream.Position - blockStartPos);
             }
-            cryptoSystems.Clear();
+            SendCrypto.Clear();
+            RecvCrypto.Clear();
 
             return results;
         }
@@ -535,7 +537,8 @@ namespace aclogview
             Flow = 0x08000000                   // Flow
         }
 
-        public static Dictionary<ushort,ICryptoSystem> cryptoSystems = new Dictionary<ushort, ICryptoSystem>();
+        public static Dictionary<ushort, ICryptoSystem> SendCrypto = new Dictionary<ushort, ICryptoSystem>();
+        public static Dictionary<ushort, ICryptoSystem> RecvCrypto = new Dictionary<ushort, ICryptoSystem>();
         private static int readOptionalHeaders(ProtoHeader pHeader, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
         {
             long readStartPos = packetReader.BaseStream.Position;
@@ -633,18 +636,18 @@ namespace aclogview
                 uint ConnectRequestIncomingSeed = packetReader.ReadUInt32();
                 uint ConnectRequestOutgoingSeed = packetReader.ReadUInt32();
                 /*uint ConnectRequestunk =*/ packetReader.ReadUInt32();
-                if (cryptoSystems.ContainsKey(pHeader.recID_)) {
-                    result.Add($"Crypto reset {pHeader.recID_}");
-                    cryptoSystems.Remove(pHeader.recID_); // Hello GC!
+                if (RecvCrypto.ContainsKey(pHeader.recID_)) {
+                    result.Add($"Recv Crypto reset {pHeader.recID_}");
+                    RecvCrypto.Remove(pHeader.recID_); // Hello GC!
                 }
-                if (cryptoSystems.ContainsKey((ushort)ConnectRequestNetID)) {
+                if (SendCrypto.ContainsKey((ushort)ConnectRequestNetID)) {
                     result.Add($"Crypto reset {ConnectRequestNetID}");
-                    cryptoSystems.Remove((ushort)ConnectRequestNetID); // Hello GC!
+                    SendCrypto.Remove((ushort)ConnectRequestNetID); // Hello GC!
                 }
-                cryptoSystems.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand)); cryptoSystems.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
-                //cryptoSystems.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); cryptoSystems.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
-                //cryptoSystems.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand)); cryptoSystems.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
-                //cryptoSystems.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); cryptoSystems.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
+                RecvCrypto.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
+                //RecvCrypto.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
+                //RecvCrypto.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
+                //RecvCrypto.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
 
                 result.Add($"ConnectRequest(rec:{pHeader.recID_},time:{Math.Round(ConnectRequestServerTime,5)},net:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
             }
@@ -716,9 +719,14 @@ namespace aclogview
                 }
             }
             if ((header & ACEPacketHeaderFlags.EncCRC) != 0) {
-                if (cryptoSystems.ContainsKey(pHeader.recID_)) {
+                if (isSend && SendCrypto.ContainsKey(pHeader.recID_)) {
                     uint xor = (pHeader.checksum_ - pHeader.headerChecksum) ^ pHeader.payloadChecksum; // nothing to see here, move along.
-                    int keyPos = Crypto.ValidateXORCRC(cryptoSystems[pHeader.recID_], xor);
+                    int keyPos = Crypto.ValidateXORCRC(SendCrypto[pHeader.recID_], xor);
+                    if (keyPos == -1) result[0] = $"XOR CRC(INVALID)";
+                    else result[0] = $"XOR CRC({keyPos})";
+                } else if (!isSend && RecvCrypto.ContainsKey(pHeader.recID_)) {
+                    uint xor = (pHeader.checksum_ - pHeader.headerChecksum) ^ pHeader.payloadChecksum; // nothing to see here, move along.
+                    int keyPos = Crypto.ValidateXORCRC(RecvCrypto[pHeader.recID_], xor);
                     if (keyPos == -1) result[0] = $"XOR CRC(INVALID)";
                     else result[0] = $"XOR CRC({keyPos})";
                 } else result.RemoveAt(0);  // result[0] = $"(? XOR CRC)";

@@ -10,6 +10,7 @@ namespace aclogview {
         private int eaten;
         public IISAACProvider isaac;
         public HashSet<uint> xors = new HashSet<uint>();
+        public List<uint> eatenKeys = new List<uint>(); // not needed for server- just for pcap validating local resends
         public CryptoSystem() { }
         public CryptoSystem(uint seed, ISAACProvider provider) {
             Init(seed, provider);
@@ -39,8 +40,14 @@ namespace aclogview {
 
         public int ConsumeKey(uint xor) {
             if (xors.Remove(xor)) {
-                xors.Add(isaac.Next());
+                xors.Add(isaac.Next()); // pull next key
+                eatenKeys.Add(xor);// not used on server- remove me. Just needed for pcap
+                if (eatenKeys.Count > 128) eatenKeys.RemoveRange(0, eatenKeys.Count - 64); // not used on server- remove me. Just needed for pcap
                 return ++eaten;
+            } else if (eatenKeys.Remove(xor)) {
+                eatenKeys.Add(xor);// not used on server- remove me. Just needed for pcap
+                // bumping key to bottom of list, so it's not pruned.
+                return 1337;
             } else return -1;
         }
     }
