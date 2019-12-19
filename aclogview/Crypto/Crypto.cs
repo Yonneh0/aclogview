@@ -49,22 +49,5 @@ namespace aclogview {
 
             return checksum;
         }
-        public static uint CalculateHash32(byte[] buf, int len) {
-            uint original = 0;
-            try {
-                original = BitConverter.ToUInt32(buf, 0x08);
-                buf[0x08] = 0xDD;
-                buf[0x09] = 0x70;
-                buf[0x0A] = 0xDD;
-                buf[0x0B] = 0xBA;
-
-                var checksum = Hash32(buf, len);
-                buf[0x08] = (byte)(original & 0xFF);
-                buf[0x09] = (byte)(original >> 8);
-                buf[0x0A] = (byte)(original >> 16);
-                buf[0x0B] = (byte)(original >> 24);
-                return checksum;
-            } catch { return 0xDEADBEEF; }
-        }
     }
 }

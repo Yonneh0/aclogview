@@ -339,12 +339,12 @@ namespace aclogview
 			{
 				try
 				{
-					ProtoHeader pHeader = ProtoHeader.read(packetReader);
+					ProtoHeader pHeader = new ProtoHeader(packetReader);
 					
 					packet.Seq = pHeader.seqID_;
 					packet.Iteration = pHeader.iteration_;
 
-					packet.optionalHeadersLen = readOptionalHeaders(pHeader.header_, packetHeadersStr, packetReader, packet.data, isSend);
+					packet.optionalHeadersLen = readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packet.data, isSend);
 
 					if (packetReader.BaseStream.Position == packetReader.BaseStream.Length)
 						packetTypeStr.Append("<Header Only>");
@@ -416,13 +416,13 @@ namespace aclogview
 			{
 				try
 				{
-					ProtoHeader pHeader = ProtoHeader.read(packetReader);
+					ProtoHeader pHeader = new ProtoHeader(packetReader);
 
 					uint HAS_FRAGS_MASK = 0x4; // See SharedNet::SplitPacketData
 
 					if ((pHeader.header_ & HAS_FRAGS_MASK) != 0)
 					{
-						readOptionalHeaders(pHeader.header_, packetHeadersStr, packetReader, packetData, isSend);
+						readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packetData, isSend);
 
 						while (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
 						{
@@ -540,28 +540,25 @@ namespace aclogview
         public static ICryptoSystem SendGenerator { get; private set; }
         public static ICryptoSystem RecvGenerator { get; private set; }
         public static bool CryptoValid = false;
-        private static int readOptionalHeaders(uint header_, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
+        private static int readOptionalHeaders(ProtoHeader pHeader, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
         {
             long readStartPos = packetReader.BaseStream.Position;
-            ACEPacketHeaderFlags header = (ACEPacketHeaderFlags)header_;
-            List<string> result = new List<string>() { "" };
-            uint originalChecksum = 0;
-            try { originalChecksum = BitConverter.ToUInt32(originalData, 0x08); } catch { }
-            uint headerChecksum = Crypto.CalculateHash32(originalData, 0x14);
-            uint payloadChecksum = 0;
+            ACEPacketHeaderFlags header = (ACEPacketHeaderFlags)pHeader.header_;
+
+            List<string> result = new List<string>() { "" }; // leave the first slot free for CRC/XOR status
 
             if ((header & ACEPacketHeaderFlags.RESEND) != 0) {
                 result.Add("RESEND");
             }
             if ((header & ACEPacketHeaderFlags.ServerSwitch) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint ServerSwitchdwSeqNo = packetReader.ReadUInt32();
                 uint ServerSwitchType = packetReader.ReadUInt32();
                 result.Add($"ServerSwitch(seq:{ServerSwitchdwSeqNo},type:{ServerSwitchType})");
             }
 
             if ((header & ACEPacketHeaderFlags.LogonServerAddr) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 16, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 16, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 short LogonServerAddrsin_family = packetReader.ReadInt16();
                 ushort LogonServerAddrsin_port = packetReader.ReadUInt16();
                 byte[] LogonServerAddrsin_addr = packetReader.ReadBytes(4);
@@ -574,7 +571,7 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.Referral) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong ReferralQWCookie = packetReader.ReadUInt64();
                 short Referralsin_family = packetReader.ReadInt16();
                 ushort Referralsin_port = packetReader.ReadUInt16();
@@ -585,7 +582,7 @@ namespace aclogview
 
             if ((header & ACEPacketHeaderFlags.NAK) != 0) {
                 uint num = packetReader.ReadUInt32();
-                payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
                 StringBuilder naks = new StringBuilder($"NAK[{num}](");
                 for (uint i = 0; i < num; ++i) {
                     if (i > 0) naks.Append(",");
@@ -596,7 +593,7 @@ namespace aclogview
 
             if ((header & ACEPacketHeaderFlags.EACK) != 0) {
                 uint num = packetReader.ReadUInt32();
-                payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
                 StringBuilder naks = new StringBuilder($"EACK[{num}](");
                 for (uint i = 0; i < num; ++i) {
                     if (i > 0) naks.Append(",");
@@ -606,7 +603,7 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.PAK) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint num = packetReader.ReadUInt32();
                 result.Add($"PAK({num})");
             }
@@ -621,19 +618,19 @@ namespace aclogview
                 int cbAuthData = packetReader.ReadInt32();
 
                 packetReader.ReadBytes(cbAuthData);
-                payloadChecksum += Crypto.Hash32(originalData, (int)(packetReader.BaseStream.Position - Start), 0x14 + (Start - (int)readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, (int)(packetReader.BaseStream.Position - Start), 0x14 + (Start - (int)readStartPos));
 
                 result.Add($"LoginRequest({ClientVersion}[{cbAuthData}])");
             }
 
             if ((header & ACEPacketHeaderFlags.WorldLoginRequest) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong m_Prim = packetReader.ReadUInt64();
                 result.Add($"WorldLoginRequest(0x{m_Prim:X16})");
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectRequest) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double ConnectRequestServerTime = packetReader.ReadDouble();
                 ulong ConnectRequestCookie = packetReader.ReadUInt64();
                 uint ConnectRequestNetID = packetReader.ReadUInt32();
@@ -656,53 +653,53 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectResponse) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong ConnectResponseCookie = packetReader.ReadUInt64();
                 result.Add($"ConnectResponse(0x{ConnectResponseCookie:X16})");
             }
 
             if ((header & ACEPacketHeaderFlags.NetError) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint m_stringID = packetReader.ReadUInt32();
                 uint m_tableID = packetReader.ReadUInt32();
                 result.Add($"NetError({m_stringID},{m_tableID})");
             }
 
             if ((header & ACEPacketHeaderFlags.NetErrorDisconnect) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint m_stringID = packetReader.ReadUInt32();
                 uint m_tableID = packetReader.ReadUInt32();
                 result.Add($"NetErrorDisconnect({m_stringID},{m_tableID})");
             }
 
             if ((header & ACEPacketHeaderFlags.CICMDCommand) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint Cmd = packetReader.ReadUInt32();
                 uint Param = packetReader.ReadUInt32();
                 result.Add($"CICMDCommand({Cmd:X8}=>{Param:X8})");
             }
 
             if ((header & ACEPacketHeaderFlags.TIME) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double m_time = packetReader.ReadDouble();
                 result.Add($"TIME({Math.Round(m_time,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PING) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float m_LocalTime = packetReader.ReadSingle();
                 result.Add($"PING({Math.Round(m_LocalTime,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PONG) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float LocalTime = packetReader.ReadSingle();
                 float HoldingTime = packetReader.ReadSingle();
                 result.Add($"PONG({Math.Round(LocalTime,5)} ++ {Math.Round(HoldingTime,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.Flow) != 0) {
-                payloadChecksum += Crypto.Hash32(originalData, 6, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                pHeader.payloadChecksum += Crypto.Hash32(originalData, 6, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint FlowCBDataRecvd = packetReader.ReadUInt32();
                 ushort FlowInterval = packetReader.ReadUInt16();
                 result.Add($"Flow(rcvd:{FlowCBDataRecvd},int:{FlowInterval})");
@@ -710,28 +707,21 @@ namespace aclogview
 
             if ((header & ACEPacketHeaderFlags.FRAG) != 0) {
                 int pos = (int)(packetReader.BaseStream.Position - readStartPos);
-                int len = -1;
-                try { len = BitConverter.ToInt16(originalData, 0x10); } catch { }
-                //result.Add($"FRAG({pos}:{len})");
+                int len = pHeader.datalen_;
                 int bailcounter = 32;
                 while (pos < len && bailcounter-- > 0) {
                     int thislen = int.MaxValue;
                     try {
                         thislen = BitConverter.ToUInt16(originalData, pos + 0x1E);
-                        payloadChecksum += Crypto.Hash32(originalData, thislen, 0x14 + pos);
+                        pHeader.payloadChecksum += Crypto.Hash32(originalData, thislen, 0x14 + pos);
                     } catch { break; }
-                    //result.Add($"0x{BitConverter.ToUInt64(originalData, pos + 0x14)}({pos}:{thislen})");
                     pos += thislen;
                 }
-                //todo
-
-
-            //todo
             }
             if ((header & ACEPacketHeaderFlags.EncCRC) != 0) {
                 if (CryptoValid) {
                     int keyPos;
-                    uint xor = (originalChecksum - headerChecksum) ^ payloadChecksum; // nothing to see here, move along.
+                    uint xor = (pHeader.checksum_ - pHeader.headerChecksum) ^ pHeader.payloadChecksum; // nothing to see here, move along.
 
                     if (isSend) keyPos = Crypto.ValidateXORCRC(SendGenerator, xor);
                     else keyPos = Crypto.ValidateXORCRC(RecvGenerator, xor);
@@ -744,7 +734,7 @@ namespace aclogview
                     result[0] = $"(? XOR CRC)";
 
             } else {
-                if (originalChecksum != (headerChecksum + payloadChecksum))
+                if (pHeader.checksum_ != (pHeader.headerChecksum + pHeader.payloadChecksum))
                     result[0] = $"CRC(INVALID)";
                 else
                     result[0] = $"CRC";
