@@ -75,7 +75,8 @@ namespace aclogview
             var verifiedKey = new Tuple<int, int>(0, 0);
             Func<Tuple<int, int>, bool> cbSearch = new Func<Tuple<int, int>, bool>((pair) =>
             {
-                if (xor == pair.Item2)
+                int xor_signed = unchecked((int)xor);
+                if (xor_signed == pair.Item2)
                 {
                     verifiedKey = pair;
                     return true;
@@ -153,7 +154,9 @@ namespace aclogview
                 int? added = null;
                 while (InternalOffset < offset + 1)
                 {
-                    added = Wheel.Next();
+                    int x = Wheel.Next();
+                    int signed_x = unchecked((int)x);
+                    added = signed_x;
                     Cache.Add(InternalOffset - 1, added.Value);
                 }
                 if (added != null)
