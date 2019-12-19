@@ -77,6 +77,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="ContextInfo.cs" />
+    <Compile Include="CryptoSystem2.cs" />
     <Compile Include="CustomListView.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -88,6 +89,7 @@
     <Compile Include="GotoLine.Designer.cs">
       <DependentUpon>GotoLine.cs</DependentUpon>
     </Compile>
+    <Compile Include="Rand2.cs" />
     <Compile Include="Server.cs" />
     <Compile Include="ServerList.cs" />
     <Compile Include="Tools\OptionsForm.cs">

@@ -568,8 +568,8 @@ namespace aclogview
             } catch { return 0xDEADBEEF; }
         }
 
-        public static CryptoSystem SendGenerator { get; private set; }
-        public static CryptoSystem RecvGenerator { get; private set; }
+        public static ICryptoSystem SendGenerator { get; private set; }
+        public static ICryptoSystem RecvGenerator { get; private set; }
         public static bool CryptoValid = false;
         private static int readOptionalHeaders(uint header_, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
         {
@@ -672,8 +672,15 @@ namespace aclogview
                 uint ConnectRequestIncomingSeed = packetReader.ReadUInt32();
                 /*uint ConnectRequestunk =*/ packetReader.ReadUInt32();
 
-                RecvGenerator = new CryptoSystem(ConnectRequestOutgoingSeed);
-                SendGenerator = new CryptoSystem(ConnectRequestIncomingSeed);
+                //RecvGenerator = new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand);
+                //SendGenerator = new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand);
+                //RecvGenerator = new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2);
+                //SendGenerator = new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2);
+                RecvGenerator = new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand);
+                SendGenerator = new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand);
+                //RecvGenerator = new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand2);
+                //SendGenerator = new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand2);
+
                 CryptoValid = true;
 
                 result.Add($"ConnectRequest(time:{Math.Round(ConnectRequestServerTime,5)},cookie:0x{ConnectRequestCookie:X16},netid:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
@@ -777,50 +784,104 @@ namespace aclogview
             if (result.Count != 0) packetHeadersStr.Append(result.Aggregate((a, b) => a + " | " + b));
             return (int)(packetReader.BaseStream.Position - readStartPos);
         }
-        private static int ValidateXORCRC(CryptoSystem cryptoSystem, uint xor) {
+        private static int ValidateXORCRC(ICryptoSystem cryptoSystem, uint xor) {
             try {
-                int keyPos = cryptoSystem.xors.IndexOf(xor);
-                if (keyPos > -1) {
+                int keyPos = cryptoSystem.IndexOf(xor);
+                if (keyPos > -1)
+                {
                     cryptoSystem.Eat(xor);
                     return keyPos;
                 }
             } catch { }
             return -1;
         }
-    }
-    public class CryptoSystem {
-        private uint seed;
-        public Rand isaac;
-        public List<uint> xors = new List<uint>(256);
-        public uint Seed {
-            get { return this.seed; }
-            set { CreateRandomGen(value); }
-        }
 
-        public CryptoSystem(uint seed) {
-            CreateRandomGen(seed);
+    }
+
+    public enum ISAACProvider
+    {
+        Rand,
+        Rand2
+    }
+    public enum CryptoSystemImplementation
+    {
+        CryptoSystem,
+        CryptoSystem2
+    }
+    public interface IISAACProvider
+    {
+        void Init(byte[] seed);
+        int Next();
+        int GetValuesTakenCount();
+    }
+    public interface ICryptoSystem
+    {
+        void Init(uint seed, ISAACProvider provider);
+        int IndexOf(uint xor);
+        void Eat(uint key);
+    }
+    public class CryptoSystem: ICryptoSystem
+    {
+        private uint seed;
+        private int eaten;
+        public IISAACProvider isaac;
+        public List<uint> xors = new List<uint>(256);
+        public CryptoSystem() { }
+        public CryptoSystem(uint seed, ISAACProvider provider) {
+            Init(seed, provider);
         }
 
         private uint GetKey() {
-            return unchecked((uint)isaac.val());
+            return unchecked((uint)isaac.Next());
         }
         public void Eat(uint key) {
             xors.Remove(key);
             xors.Add(GetKey());
+            eaten++;
         }
-        private void CreateRandomGen(uint seed) {
+        private void CreateRandomGen(uint seed, ISAACProvider provider) {
             this.seed = seed;
             int signed_seed = unchecked((int)seed);
-            this.isaac = new Rand(signed_seed, signed_seed, signed_seed);
+
+            switch (provider)
+            {
+                case ISAACProvider.Rand:
+                    isaac = new Rand();
+                    isaac.Init(BitConverter.GetBytes(signed_seed));
+                    break;
+                case ISAACProvider.Rand2:
+                    isaac = new Rand2();
+                    isaac.Init(BitConverter.GetBytes(signed_seed));
+                    break;
+            }
             xors = new List<uint>(256);
             for (int i = 0; i < 256; i++) xors.Add(GetKey());
+        }
+
+        public void Init(uint seed, ISAACProvider provider)
+        {
+            CreateRandomGen(seed, provider);
+        }
+
+        public int IndexOf(uint xor)
+        {
+            var u = xors.IndexOf(xor);
+            if (u > -1)
+            {
+                return u + eaten;
+            }
+            else
+            {
+                return u;
+            }
         }
     }
 
 
 
 
-    public class Rand {
+    public class Rand: IISAACProvider
+    {
         public const int SIZEL = 8;              /* log of size of rsl[] and mem[] */
         public const int SIZE = 1 << SIZEL;               /* size of rsl[] and mem[] */
         public const int MASK = (SIZE - 1) << 2;            /* for pseudorandom lookup */
@@ -832,14 +893,34 @@ namespace aclogview
         private int c;              /* counter, guarantees cycle is at least 2^^40 */
 
 
+        public void Init(byte[] seed)
+        {
+            var x = BitConverter.ToInt32(seed, 0);
+            Init2(x, x, x);
+        }
+
+        public int Next()
+        {
+            return val();
+        }
+
         /* no seed, equivalent to randinit(ctx,FALSE) in C */
         public Rand() {
+            Init1();
+        }
+
+        public Rand(int a, int b, int c) {
+            Init2(a, b, c);
+        }
+
+        private void Init1()
+        {
             mem = new int[SIZE];
             rsl = new int[SIZE];
             Init(false);
         }
-
-        public Rand(int a, int b, int c) {
+        private void Init2(int a, int b, int c)
+        {
             this.a = a;
             this.b = b;
             this.c = c;
@@ -848,6 +929,8 @@ namespace aclogview
             rsl = new int[SIZE];
             Init(true);
         }
+
+
 
         /* equivalent to randinit(ctx, TRUE) after putting seed in randctx in C */
         public Rand(int[] seed) {
@@ -974,6 +1057,9 @@ namespace aclogview
             count = SIZE;
         }
 
+        public int ValuesTakenCount = 0;
+
+        public int GetValuesTakenCount() { return ValuesTakenCount; }
 
         /* Call rand.val() to get a random value */
         public /*final*/ int val() {
@@ -981,6 +1067,7 @@ namespace aclogview
                 Isaac();
                 count = SIZE - 1;
             }
+            ValuesTakenCount++;
             return rsl[count];
         }
 
