@@ -65,12 +65,7 @@ namespace aclogview
             Init(BitConverter.GetBytes(signed_seed), provider);
         }
 
-        public void Eat(uint key)
-        {
-            //auto eats when search procedure finds the key
-        }
-
-        public int IndexOf(uint xor)
+        public int ConsumeKey(uint xor)
         {
             var verifiedKey = new Tuple<int, int>(0, 0);
             Func<Tuple<int, int>, bool> cbSearch = new Func<Tuple<int, int>, bool>((pair) =>
@@ -154,9 +149,7 @@ namespace aclogview
                 int? added = null;
                 while (InternalOffset < offset + 1)
                 {
-                    int x = Wheel.Next();
-                    int signed_x = unchecked((int)x);
-                    added = signed_x;
+                    unchecked { added = (int)Wheel.Next(); }
                     Cache.Add(InternalOffset - 1, added.Value);
                 }
                 if (added != null)

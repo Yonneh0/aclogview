@@ -9,20 +9,12 @@ namespace aclogview {
         private uint seed;
         private int eaten;
         public IISAACProvider isaac;
-        public List<uint> xors = new List<uint>(256);
+        public HashSet<uint> xors = new HashSet<uint>();
         public CryptoSystem() { }
         public CryptoSystem(uint seed, ISAACProvider provider) {
             Init(seed, provider);
         }
 
-        private uint GetKey() {
-            return unchecked((uint)isaac.Next());
-        }
-        public void Eat(uint key) {
-            xors.Remove(key);
-            xors.Add(GetKey());
-            eaten++;
-        }
         private void CreateRandomGen(uint seed, ISAACProvider provider) {
             this.seed = seed;
             int signed_seed = unchecked((int)seed);
@@ -37,21 +29,19 @@ namespace aclogview {
                     isaac.Init(BitConverter.GetBytes(signed_seed));
                     break;
             }
-            xors = new List<uint>(256);
-            for (int i = 0; i < 256; i++) xors.Add(GetKey());
+            xors.Clear();
+            for (int i = 0; i < 256; i++) xors.Add(isaac.Next());
         }
 
         public void Init(uint seed, ISAACProvider provider) {
             CreateRandomGen(seed, provider);
         }
 
-        public int IndexOf(uint xor) {
-            var u = xors.IndexOf(xor);
-            if (u > -1) {
-                return u + eaten;
-            } else {
-                return u;
-            }
+        public int ConsumeKey(uint xor) {
+            if (xors.Remove(xor)) {
+                xors.Add(isaac.Next());
+                return ++eaten;
+            } else return -1;
         }
     }
 }

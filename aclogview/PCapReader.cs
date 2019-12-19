@@ -165,9 +165,7 @@ namespace aclogview
                     binaryReader.BaseStream.Position += recordHeader.inclLen - (binaryReader.BaseStream.Position - packetStartPos);
                 }
             }
-            CryptoValid = false;
-            SendGenerator = null;
-            RecvGenerator = null;
+            cryptoPair.Clear();
             return results;
         }
 
@@ -255,9 +253,7 @@ namespace aclogview
 
                 binaryReader.BaseStream.Position += blockHeader.blockTotalLength - (binaryReader.BaseStream.Position - blockStartPos);
             }
-            CryptoValid = false;
-            SendGenerator = null;
-            RecvGenerator = null;
+            cryptoPair.Clear();
 
             return results;
         }
@@ -536,10 +532,7 @@ namespace aclogview
             Flow = 0x08000000                   // Flow
         }
 
-
-        public static ICryptoSystem SendGenerator { get; private set; }
-        public static ICryptoSystem RecvGenerator { get; private set; }
-        public static bool CryptoValid = false;
+        public static Dictionary<ushort,CryptoPair> cryptoPair = new Dictionary<ushort, CryptoPair>();
         private static int readOptionalHeaders(ProtoHeader pHeader, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
         {
             long readStartPos = packetReader.BaseStream.Position;
@@ -637,18 +630,11 @@ namespace aclogview
                 uint ConnectRequestOutgoingSeed = packetReader.ReadUInt32();
                 uint ConnectRequestIncomingSeed = packetReader.ReadUInt32();
                 /*uint ConnectRequestunk =*/ packetReader.ReadUInt32();
-
-                //RecvGenerator = new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand);
-                //SendGenerator = new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand);
-                //RecvGenerator = new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2);
-                //SendGenerator = new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2);
-                RecvGenerator = new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand);
-                SendGenerator = new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand);
-                //RecvGenerator = new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand2);
-                //SendGenerator = new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand2);
-
-                CryptoValid = true;
-
+                if (cryptoPair.ContainsKey(pHeader.iteration_)) {
+                    result.Add($"*** Crypto reset for existing iteration!");
+                    cryptoPair.Remove(pHeader.iteration_);
+                }
+                cryptoPair.Add(pHeader.iteration_, new CryptoPair(pHeader.iteration_, ConnectRequestIncomingSeed, ConnectRequestOutgoingSeed));
                 result.Add($"ConnectRequest(time:{Math.Round(ConnectRequestServerTime,5)},cookie:0x{ConnectRequestCookie:X16},netid:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
             }
 
@@ -719,12 +705,9 @@ namespace aclogview
                 }
             }
             if ((header & ACEPacketHeaderFlags.EncCRC) != 0) {
-                if (CryptoValid) {
-                    int keyPos;
+                if (cryptoPair.ContainsKey(pHeader.iteration_)) {
                     uint xor = (pHeader.checksum_ - pHeader.headerChecksum) ^ pHeader.payloadChecksum; // nothing to see here, move along.
-
-                    if (isSend) keyPos = Crypto.ValidateXORCRC(SendGenerator, xor);
-                    else keyPos = Crypto.ValidateXORCRC(RecvGenerator, xor);
+                    int keyPos = Crypto.ValidateXORCRC(cryptoPair[pHeader.iteration_][isSend], xor);
                     if (keyPos == -1)
                         result[0] = $"XOR CRC(INVALID)";
                     else {

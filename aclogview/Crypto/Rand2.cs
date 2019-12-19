@@ -25,11 +25,9 @@ namespace aclogview
             Initialize(seed);
         }
 
-        public int Next()
+        public uint Next()
         {
-            uint x = GetOffset();
-            int signed_x = unchecked((int)x);
-            return signed_x;
+            return GetOffset();
         }
 
         public int GetValuesTakenCount()

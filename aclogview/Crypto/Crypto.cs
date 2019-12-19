@@ -15,25 +15,19 @@ namespace aclogview {
     }
     public interface IISAACProvider {
         void Init(byte[] seed);
-        int Next();
+        uint Next();
         int GetValuesTakenCount();
     }
     public interface ICryptoSystem {
         void Init(uint seed, ISAACProvider provider);
-        int IndexOf(uint xor);
-        void Eat(uint key);
+        int ConsumeKey(uint xor);
     }
 
     public static class Crypto {
         public static int ValidateXORCRC(ICryptoSystem cryptoSystem, uint xor) {
             try {
-                int keyPos = cryptoSystem.IndexOf(xor);
-                if (keyPos > -1) {
-                    cryptoSystem.Eat(xor);
-                    return keyPos;
-                }
-            } catch { }
-            return -1;
+                return cryptoSystem.ConsumeKey(xor);
+            } catch { return -1; }
         }
         public static uint Hash32(byte[] data, int length, int offset = 0) {
             uint checksum = (uint)length << 16;
@@ -48,6 +42,29 @@ namespace aclogview {
                 checksum += (uint)(data[offset + j++] << (8 * shift--));
 
             return checksum;
+        }
+    }
+    public class CryptoPair {
+        public ICryptoSystem SendGenerator { get; private set; }
+        public ICryptoSystem RecvGenerator { get; private set; }
+        public bool CryptoValid;
+        public ushort iterator;
+        public CryptoPair(ushort iterator, uint SendSeed, uint RecvSeed) {
+            //RecvGenerator = new CryptoSystem2(RecvSeed, ISAACProvider.Rand);
+            //SendGenerator = new CryptoSystem2(SendSeed, ISAACProvider.Rand);
+            //RecvGenerator = new CryptoSystem2(RecvSeed, ISAACProvider.Rand2);
+            //SendGenerator = new CryptoSystem2(SendSeed, ISAACProvider.Rand2);
+            RecvGenerator = new CryptoSystem(RecvSeed, ISAACProvider.Rand);
+            SendGenerator = new CryptoSystem(SendSeed, ISAACProvider.Rand);
+            //RecvGenerator = new CryptoSystem(RecvSeed, ISAACProvider.Rand2);
+            //SendGenerator = new CryptoSystem(SendSeed, ISAACProvider.Rand2);
+            this.iterator = iterator;
+        }
+        public ICryptoSystem this[bool isSend] {
+            get {
+                if (isSend) return SendGenerator;
+                return RecvGenerator;
+            }
         }
     }
 }
