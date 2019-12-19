@@ -265,7 +265,7 @@ namespace aclogview {
             // 
             // iterationColumn
             // 
-            this.iterationColumn.Text = "Iteration";
+            this.iterationColumn.Text = "RecID";
             // 
             // serverPortColumn
             // 
@@ -965,7 +965,7 @@ namespace aclogview {
             this.iterationMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
             this.iterationMenuItem.Name = "iterationMenuItem";
             this.iterationMenuItem.Size = new System.Drawing.Size(131, 22);
-            this.iterationMenuItem.Text = "Iteration";
+            this.iterationMenuItem.Text = "RecID";
             // 
             // serverPortMenuItem
             // 

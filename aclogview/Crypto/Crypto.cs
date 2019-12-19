@@ -44,27 +44,4 @@ namespace aclogview {
             return checksum;
         }
     }
-    public class CryptoPair {
-        public ICryptoSystem SendGenerator { get; private set; }
-        public ICryptoSystem RecvGenerator { get; private set; }
-        public bool CryptoValid;
-        public ushort recID;
-        public CryptoPair(ushort recID, uint SendSeed, uint RecvSeed) {
-            //RecvGenerator = new CryptoSystem2(RecvSeed, ISAACProvider.Rand);
-            //SendGenerator = new CryptoSystem2(SendSeed, ISAACProvider.Rand);
-            RecvGenerator = new CryptoSystem2(RecvSeed, ISAACProvider.Rand2);
-            SendGenerator = new CryptoSystem2(SendSeed, ISAACProvider.Rand2);
-            //RecvGenerator = new CryptoSystem(RecvSeed, ISAACProvider.Rand);
-            //SendGenerator = new CryptoSystem(SendSeed, ISAACProvider.Rand);
-            //RecvGenerator = new CryptoSystem(RecvSeed, ISAACProvider.Rand2);
-            //SendGenerator = new CryptoSystem(SendSeed, ISAACProvider.Rand2);
-            this.recID = recID;
-        }
-        public ICryptoSystem this[bool isSend] {
-            get {
-                if (isSend) return SendGenerator;
-                return RecvGenerator;
-            }
-        }
-    }
 }
