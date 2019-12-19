@@ -536,37 +536,6 @@ namespace aclogview
             Flow = 0x08000000                   // Flow
         }
 
-        public static uint Hash32(byte[] data, int length, int offset = 0) {
-            uint checksum = (uint)length << 16;
-
-            for (int i = 0; i < length && i + 4 <= length; i += 4)
-                checksum += BitConverter.ToUInt32(data, offset + i);
-
-            int shift = 3;
-            int j = (length / 4) * 4;
-
-            while (j < length)
-                checksum += (uint)(data[offset + j++] << (8 * shift--));
-
-            return checksum;
-        }
-        public static uint CalculateHash32(byte[] buf, int len) {
-            uint original = 0;
-            try {
-                original = BitConverter.ToUInt32(buf, 0x08);
-                buf[0x08] = 0xDD;
-                buf[0x09] = 0x70;
-                buf[0x0A] = 0xDD;
-                buf[0x0B] = 0xBA;
-
-                var checksum = Hash32(buf, len);
-                buf[0x08] = (byte)(original & 0xFF);
-                buf[0x09] = (byte)(original >> 8);
-                buf[0x0A] = (byte)(original >> 16);
-                buf[0x0B] = (byte)(original >> 24);
-                return checksum;
-            } catch { return 0xDEADBEEF; }
-        }
 
         public static ICryptoSystem SendGenerator { get; private set; }
         public static ICryptoSystem RecvGenerator { get; private set; }
@@ -578,21 +547,21 @@ namespace aclogview
             List<string> result = new List<string>() { "" };
             uint originalChecksum = 0;
             try { originalChecksum = BitConverter.ToUInt32(originalData, 0x08); } catch { }
-            uint headerChecksum = CalculateHash32(originalData, 0x14);
+            uint headerChecksum = Crypto.CalculateHash32(originalData, 0x14);
             uint payloadChecksum = 0;
 
             if ((header & ACEPacketHeaderFlags.RESEND) != 0) {
                 result.Add("RESEND");
             }
             if ((header & ACEPacketHeaderFlags.ServerSwitch) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint ServerSwitchdwSeqNo = packetReader.ReadUInt32();
                 uint ServerSwitchType = packetReader.ReadUInt32();
                 result.Add($"ServerSwitch(seq:{ServerSwitchdwSeqNo},type:{ServerSwitchType})");
             }
 
             if ((header & ACEPacketHeaderFlags.LogonServerAddr) != 0) {
-                payloadChecksum += Hash32(originalData, 16, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 16, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 short LogonServerAddrsin_family = packetReader.ReadInt16();
                 ushort LogonServerAddrsin_port = packetReader.ReadUInt16();
                 byte[] LogonServerAddrsin_addr = packetReader.ReadBytes(4);
@@ -605,7 +574,7 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.Referral) != 0) {
-                payloadChecksum += Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong ReferralQWCookie = packetReader.ReadUInt64();
                 short Referralsin_family = packetReader.ReadInt16();
                 ushort Referralsin_port = packetReader.ReadUInt16();
@@ -616,7 +585,7 @@ namespace aclogview
 
             if ((header & ACEPacketHeaderFlags.NAK) != 0) {
                 uint num = packetReader.ReadUInt32();
-                payloadChecksum += Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
                 StringBuilder naks = new StringBuilder($"NAK[{num}](");
                 for (uint i = 0; i < num; ++i) {
                     if (i > 0) naks.Append(",");
@@ -627,7 +596,7 @@ namespace aclogview
 
             if ((header & ACEPacketHeaderFlags.EACK) != 0) {
                 uint num = packetReader.ReadUInt32();
-                payloadChecksum += Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 4 + ((int)num * 4), 0x10 + (int)(packetReader.BaseStream.Position - readStartPos));
                 StringBuilder naks = new StringBuilder($"EACK[{num}](");
                 for (uint i = 0; i < num; ++i) {
                     if (i > 0) naks.Append(",");
@@ -637,7 +606,7 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.PAK) != 0) {
-                payloadChecksum += Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint num = packetReader.ReadUInt32();
                 result.Add($"PAK({num})");
             }
@@ -652,19 +621,19 @@ namespace aclogview
                 int cbAuthData = packetReader.ReadInt32();
 
                 packetReader.ReadBytes(cbAuthData);
-                payloadChecksum += Hash32(originalData, (int)(packetReader.BaseStream.Position - Start), 0x14 + (Start - (int)readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, (int)(packetReader.BaseStream.Position - Start), 0x14 + (Start - (int)readStartPos));
 
                 result.Add($"LoginRequest({ClientVersion}[{cbAuthData}])");
             }
 
             if ((header & ACEPacketHeaderFlags.WorldLoginRequest) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong m_Prim = packetReader.ReadUInt64();
                 result.Add($"WorldLoginRequest(0x{m_Prim:X16})");
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectRequest) != 0) {
-                payloadChecksum += Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double ConnectRequestServerTime = packetReader.ReadDouble();
                 ulong ConnectRequestCookie = packetReader.ReadUInt64();
                 uint ConnectRequestNetID = packetReader.ReadUInt32();
@@ -687,53 +656,53 @@ namespace aclogview
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectResponse) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 ulong ConnectResponseCookie = packetReader.ReadUInt64();
                 result.Add($"ConnectResponse(0x{ConnectResponseCookie:X16})");
             }
 
             if ((header & ACEPacketHeaderFlags.NetError) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint m_stringID = packetReader.ReadUInt32();
                 uint m_tableID = packetReader.ReadUInt32();
                 result.Add($"NetError({m_stringID},{m_tableID})");
             }
 
             if ((header & ACEPacketHeaderFlags.NetErrorDisconnect) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint m_stringID = packetReader.ReadUInt32();
                 uint m_tableID = packetReader.ReadUInt32();
                 result.Add($"NetErrorDisconnect({m_stringID},{m_tableID})");
             }
 
             if ((header & ACEPacketHeaderFlags.CICMDCommand) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint Cmd = packetReader.ReadUInt32();
                 uint Param = packetReader.ReadUInt32();
                 result.Add($"CICMDCommand({Cmd:X8}=>{Param:X8})");
             }
 
             if ((header & ACEPacketHeaderFlags.TIME) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double m_time = packetReader.ReadDouble();
                 result.Add($"TIME({Math.Round(m_time,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PING) != 0) {
-                payloadChecksum += Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float m_LocalTime = packetReader.ReadSingle();
                 result.Add($"PING({Math.Round(m_LocalTime,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PONG) != 0) {
-                payloadChecksum += Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float LocalTime = packetReader.ReadSingle();
                 float HoldingTime = packetReader.ReadSingle();
                 result.Add($"PONG({Math.Round(LocalTime,5)} ++ {Math.Round(HoldingTime,5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.Flow) != 0) {
-                payloadChecksum += Hash32(originalData, 6, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
+                payloadChecksum += Crypto.Hash32(originalData, 6, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 uint FlowCBDataRecvd = packetReader.ReadUInt32();
                 ushort FlowInterval = packetReader.ReadUInt16();
                 result.Add($"Flow(rcvd:{FlowCBDataRecvd},int:{FlowInterval})");
@@ -749,7 +718,7 @@ namespace aclogview
                     int thislen = int.MaxValue;
                     try {
                         thislen = BitConverter.ToUInt16(originalData, pos + 0x1E);
-                        payloadChecksum += Hash32(originalData, thislen, 0x14 + pos);
+                        payloadChecksum += Crypto.Hash32(originalData, thislen, 0x14 + pos);
                     } catch { break; }
                     //result.Add($"0x{BitConverter.ToUInt64(originalData, pos + 0x14)}({pos}:{thislen})");
                     pos += thislen;
@@ -764,8 +733,8 @@ namespace aclogview
                     int keyPos;
                     uint xor = (originalChecksum - headerChecksum) ^ payloadChecksum; // nothing to see here, move along.
 
-                    if (isSend) keyPos = ValidateXORCRC(SendGenerator, xor);
-                    else keyPos = ValidateXORCRC(RecvGenerator, xor);
+                    if (isSend) keyPos = Crypto.ValidateXORCRC(SendGenerator, xor);
+                    else keyPos = Crypto.ValidateXORCRC(RecvGenerator, xor);
                     if (keyPos == -1)
                         result[0] = $"XOR CRC(INVALID)";
                     else {
@@ -784,293 +753,9 @@ namespace aclogview
             if (result.Count != 0) packetHeadersStr.Append(result.Aggregate((a, b) => a + " | " + b));
             return (int)(packetReader.BaseStream.Position - readStartPos);
         }
-        private static int ValidateXORCRC(ICryptoSystem cryptoSystem, uint xor) {
-            try {
-                int keyPos = cryptoSystem.IndexOf(xor);
-                if (keyPos > -1)
-                {
-                    cryptoSystem.Eat(xor);
-                    return keyPos;
-                }
-            } catch { }
-            return -1;
-        }
 
     }
 
-    public enum ISAACProvider
-    {
-        Rand,
-        Rand2
-    }
-    public enum CryptoSystemImplementation
-    {
-        CryptoSystem,
-        CryptoSystem2
-    }
-    public interface IISAACProvider
-    {
-        void Init(byte[] seed);
-        int Next();
-        int GetValuesTakenCount();
-    }
-    public interface ICryptoSystem
-    {
-        void Init(uint seed, ISAACProvider provider);
-        int IndexOf(uint xor);
-        void Eat(uint key);
-    }
-    public class CryptoSystem: ICryptoSystem
-    {
-        private uint seed;
-        private int eaten;
-        public IISAACProvider isaac;
-        public List<uint> xors = new List<uint>(256);
-        public CryptoSystem() { }
-        public CryptoSystem(uint seed, ISAACProvider provider) {
-            Init(seed, provider);
-        }
 
-        private uint GetKey() {
-            return unchecked((uint)isaac.Next());
-        }
-        public void Eat(uint key) {
-            xors.Remove(key);
-            xors.Add(GetKey());
-            eaten++;
-        }
-        private void CreateRandomGen(uint seed, ISAACProvider provider) {
-            this.seed = seed;
-            int signed_seed = unchecked((int)seed);
-
-            switch (provider)
-            {
-                case ISAACProvider.Rand:
-                    isaac = new Rand();
-                    isaac.Init(BitConverter.GetBytes(signed_seed));
-                    break;
-                case ISAACProvider.Rand2:
-                    isaac = new Rand2();
-                    isaac.Init(BitConverter.GetBytes(signed_seed));
-                    break;
-            }
-            xors = new List<uint>(256);
-            for (int i = 0; i < 256; i++) xors.Add(GetKey());
-        }
-
-        public void Init(uint seed, ISAACProvider provider)
-        {
-            CreateRandomGen(seed, provider);
-        }
-
-        public int IndexOf(uint xor)
-        {
-            var u = xors.IndexOf(xor);
-            if (u > -1)
-            {
-                return u + eaten;
-            }
-            else
-            {
-                return u;
-            }
-        }
-    }
-
-
-
-
-    public class Rand: IISAACProvider
-    {
-        public const int SIZEL = 8;              /* log of size of rsl[] and mem[] */
-        public const int SIZE = 1 << SIZEL;               /* size of rsl[] and mem[] */
-        public const int MASK = (SIZE - 1) << 2;            /* for pseudorandom lookup */
-        public int count;                           /* count through the results in rsl[] */
-        public int[] rsl;                                /* the results given to the user */
-        private int[] mem;                                   /* the internal state */
-        private int a;                                              /* accumulator */
-        private int b;                                          /* the last result */
-        private int c;              /* counter, guarantees cycle is at least 2^^40 */
-
-
-        public void Init(byte[] seed)
-        {
-            var x = BitConverter.ToInt32(seed, 0);
-            Init2(x, x, x);
-        }
-
-        public int Next()
-        {
-            return val();
-        }
-
-        /* no seed, equivalent to randinit(ctx,FALSE) in C */
-        public Rand() {
-            Init1();
-        }
-
-        public Rand(int a, int b, int c) {
-            Init2(a, b, c);
-        }
-
-        private void Init1()
-        {
-            mem = new int[SIZE];
-            rsl = new int[SIZE];
-            Init(false);
-        }
-        private void Init2(int a, int b, int c)
-        {
-            this.a = a;
-            this.b = b;
-            this.c = c;
-
-            mem = new int[SIZE];
-            rsl = new int[SIZE];
-            Init(true);
-        }
-
-
-
-        /* equivalent to randinit(ctx, TRUE) after putting seed in randctx in C */
-        public Rand(int[] seed) {
-            mem = new int[SIZE];
-            rsl = new int[SIZE];
-            for (int i = 0; i < seed.Length; ++i) {
-                rsl[i] = seed[i];
-            }
-            Init(true);
-        }
-
-
-        /* Generate 256 results.  This is a fast (not small) implementation. */
-        public /*final*/ void Isaac() {
-            int i, j, x, y;
-
-            b += ++c;
-            for (i = 0, j = SIZE / 2; i < SIZE / 2;) {
-                x = mem[i];
-                a ^= a << 13;
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= (int)((uint)a >> 6);
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= a << 2;
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= (int)((uint)a >> 16);
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-            }
-
-            for (j = 0; j < SIZE / 2;) {
-                x = mem[i];
-                a ^= a << 13;
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= (int)((uint)a >> 6);
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= a << 2;
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-
-                x = mem[i];
-                a ^= (int)((uint)a >> 16);
-                a += mem[j++];
-                mem[i] = y = mem[(x & MASK) >> 2] + a + b;
-                rsl[i++] = b = mem[((y >> SIZEL) & MASK) >> 2] + x;
-            }
-        }
-
-
-        /* initialize, or reinitialize, this instance of rand */
-        public /*final*/ void Init(bool flag) {
-            int i;
-            int a, b, c, d, e, f, g, h;
-            a = b = c = d = e = f = g = h = unchecked((int)0x9e3779b9);                        /* the golden ratio */
-
-            for (i = 0; i < 4; ++i) {
-                a ^= b << 11; d += a; b += c;
-                b ^= (int)((uint)c >> 2); e += b; c += d;
-                c ^= d << 8; f += c; d += e;
-                d ^= (int)((uint)e >> 16); g += d; e += f;
-                e ^= f << 10; h += e; f += g;
-                f ^= (int)((uint)g >> 4); a += f; g += h;
-                g ^= h << 8; b += g; h += a;
-                h ^= (int)((uint)a >> 9); c += h; a += b;
-            }
-
-            for (i = 0; i < SIZE; i += 8) {              /* fill in mem[] with messy stuff */
-                if (flag) {
-                    a += rsl[i]; b += rsl[i + 1]; c += rsl[i + 2]; d += rsl[i + 3];
-                    e += rsl[i + 4]; f += rsl[i + 5]; g += rsl[i + 6]; h += rsl[i + 7];
-                }
-                a ^= b << 11; d += a; b += c;
-                b ^= (int)((uint)c >> 2); e += b; c += d;
-                c ^= d << 8; f += c; d += e;
-                d ^= (int)((uint)e >> 16); g += d; e += f;
-                e ^= f << 10; h += e; f += g;
-                f ^= (int)((uint)g >> 4); a += f; g += h;
-                g ^= h << 8; b += g; h += a;
-                h ^= (int)((uint)a >> 9); c += h; a += b;
-                mem[i] = a; mem[i + 1] = b; mem[i + 2] = c; mem[i + 3] = d;
-                mem[i + 4] = e; mem[i + 5] = f; mem[i + 6] = g; mem[i + 7] = h;
-            }
-
-            if (flag) {           /* second pass makes all of seed affect all of mem */
-                for (i = 0; i < SIZE; i += 8) {
-                    a += mem[i]; b += mem[i + 1]; c += mem[i + 2]; d += mem[i + 3];
-                    e += mem[i + 4]; f += mem[i + 5]; g += mem[i + 6]; h += mem[i + 7];
-                    a ^= b << 11; d += a; b += c;
-                    b ^= (int)((uint)c >> 2); e += b; c += d;
-                    c ^= d << 8; f += c; d += e;
-                    d ^= (int)((uint)e >> 16); g += d; e += f;
-                    e ^= f << 10; h += e; f += g;
-                    f ^= (int)((uint)g >> 4); a += f; g += h;
-                    g ^= h << 8; b += g; h += a;
-                    h ^= (int)((uint)a >> 9); c += h; a += b;
-                    mem[i] = a; mem[i + 1] = b; mem[i + 2] = c; mem[i + 3] = d;
-                    mem[i + 4] = e; mem[i + 5] = f; mem[i + 6] = g; mem[i + 7] = h;
-                }
-            }
-
-            Isaac();
-            count = SIZE;
-        }
-
-        public int ValuesTakenCount = 0;
-
-        public int GetValuesTakenCount() { return ValuesTakenCount; }
-
-        /* Call rand.val() to get a random value */
-        public /*final*/ int val() {
-            if (0 == count--) {
-                Isaac();
-                count = SIZE - 1;
-            }
-            ValuesTakenCount++;
-            return rsl[count];
-        }
-
-    }
 
 }

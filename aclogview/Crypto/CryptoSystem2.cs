@@ -154,7 +154,9 @@ namespace aclogview
                 int? added = null;
                 while (InternalOffset < offset + 1)
                 {
-                    added = Wheel.Next();
+                    int x = Wheel.Next();
+                    int signed_x = unchecked((int)x);
+                    added = signed_x;
                     Cache.Add(InternalOffset - 1, added.Value);
                 }
                 if (added != null)
