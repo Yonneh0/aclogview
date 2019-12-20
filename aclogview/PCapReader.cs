@@ -4,36 +4,25 @@ using System.IO;
 using System.Text;
 using System.Linq;
 
-namespace aclogview
-{
-    static class PCapReader
-    {
-        public static List<PacketRecord> LoadPcap(string fileName, bool asMessages, ref bool abort, out bool isPcapng)
-        {
-            using (FileStream fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            {
-                using (BinaryReader binaryReader = new BinaryReader(fileStream))
-                {
+namespace aclogview {
+    static class PCapReader {
+        public static List<PacketRecord> LoadPcap(string fileName, bool asMessages, ref bool abort, out bool isPcapng) {
+            using (FileStream fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+                using (BinaryReader binaryReader = new BinaryReader(fileStream)) {
                     uint magicNumber = binaryReader.ReadUInt32();
-
                     binaryReader.BaseStream.Position = 0;
-
-                    if (magicNumber == 0xA1B2C3D4 || magicNumber == 0xD4C3B2A1)
-                    {
+                    if (magicNumber == 0xA1B2C3D4 || magicNumber == 0xD4C3B2A1) {
                         isPcapng = false;
                         return loadPcapPacketRecords(binaryReader, asMessages, ref abort);
                     }
-
                     isPcapng = true;
                     return loadPcapngPacketRecords(binaryReader, asMessages, ref abort);
                 }
             }
         }
 
-        private class FragNumComparer : IComparer<BlobFrag>
-        {
-            int IComparer<BlobFrag>.Compare(BlobFrag a, BlobFrag b)
-            {
+        private class FragNumComparer : IComparer<BlobFrag> {
+            int IComparer<BlobFrag>.Compare(BlobFrag a, BlobFrag b) {
                 if (a.memberHeader_.blobNum > b.memberHeader_.blobNum)
                     return 1;
                 if (a.memberHeader_.blobNum < b.memberHeader_.blobNum)
@@ -42,126 +31,75 @@ namespace aclogview
             }
         }
 
-        private static bool addPacketIfFinished(List<PacketRecord> finishedRecords, PacketRecord record)
-        {
+        private static bool addPacketIfFinished(List<PacketRecord> finishedRecords, PacketRecord record) {
             record.frags.Sort(new FragNumComparer());
-
             // Make sure all fragments are present
             if (record.frags.Count < record.frags[0].memberHeader_.numFrags
                 || record.frags[0].memberHeader_.blobNum != 0
-                || record.frags[record.frags.Count - 1].memberHeader_.blobNum != record.frags[0].memberHeader_.numFrags - 1)
-            {
+                || record.frags[record.frags.Count - 1].memberHeader_.blobNum != record.frags[0].memberHeader_.numFrags - 1) {
                 return false;
             }
-
             record.index = finishedRecords.Count;
-
             // Remove duplicate fragments
             int index = 0;
-            while (index < record.frags.Count - 1)
-            {
+            while (index < record.frags.Count - 1) {
                 if (record.frags[index].memberHeader_.blobNum == record.frags[index + 1].memberHeader_.blobNum)
                     record.frags.RemoveAt(index);
                 else
                     index++;
             }
-
             int totalMessageSize = 0;
-            foreach (BlobFrag frag in record.frags)
-            {
+            foreach (BlobFrag frag in record.frags) {
                 totalMessageSize += frag.dat_.Length;
             }
-
             record.data = new byte[totalMessageSize];
             int offset = 0;
-            foreach (BlobFrag frag in record.frags)
-            {
+            foreach (BlobFrag frag in record.frags) {
                 Buffer.BlockCopy(frag.dat_, 0, record.data, offset, frag.dat_.Length);
                 offset += frag.dat_.Length;
             }
-
             finishedRecords.Add(record);
-
             return true;
         }
 
-        private static PcapRecordHeader readPcapRecordHeader(BinaryReader binaryReader, int curPacket)
-        {
+        private static PcapRecordHeader readPcapRecordHeader(BinaryReader binaryReader, int curPacket) {
             if (binaryReader.BaseStream.Length - binaryReader.BaseStream.Position < 16)
-            {
                 throw new InvalidDataException("Stream cut short (packet " + curPacket + "), stopping read: " + (binaryReader.BaseStream.Length - binaryReader.BaseStream.Position));
-            }
-
-            PcapRecordHeader recordHeader = PcapRecordHeader.read(binaryReader);
-
+            PcapRecordHeader recordHeader = new PcapRecordHeader(binaryReader);
             if (recordHeader.inclLen > 5000)
-            {
                 throw new InvalidDataException("Enormous packet (packet " + curPacket + "), stopping read: " + recordHeader.inclLen);
-            }
-
             // Make sure there's enough room for an ethernet header
-            if (recordHeader.inclLen < 14)
-            {
+            if (recordHeader.inclLen < 14) {
                 binaryReader.BaseStream.Position += recordHeader.inclLen;
                 return null;
             }
-
             return recordHeader;
         }
 
-        private static List<PacketRecord> loadPcapPacketRecords(BinaryReader binaryReader, bool asMessages, ref bool abort)
-        {
-            /*PcapHeader pcapHeader = */PcapHeader.read(binaryReader);
-
+        private static List<PacketRecord> loadPcapPacketRecords(BinaryReader binaryReader, bool asMessages, ref bool abort) {
+            /*PcapHeader pcapHeader = */
+            new PcapHeader(binaryReader);
             List<PacketRecord> results = new List<PacketRecord>();
-
             int curPacket = 0;
-
             Dictionary<ulong, PacketRecord> incompletePacketMap = new Dictionary<ulong, PacketRecord>();
-
-            while (binaryReader.BaseStream.Position != binaryReader.BaseStream.Length)
-            {
-                if (abort)
-                    break;
-
+            while (binaryReader.BaseStream.Position != binaryReader.BaseStream.Length) {
+                if (abort) break;
                 PcapRecordHeader recordHeader;
-                try
-                {
+                try {
                     recordHeader = readPcapRecordHeader(binaryReader, curPacket);
-
-                    if (recordHeader == null)
-                    {
-                        continue;
-                    }
-                }
-                catch (InvalidDataException e)
-                {
-                    break;
-                }
-
+                    if (recordHeader == null) continue;
+                } catch (InvalidDataException _) { break; }
                 long packetStartPos = binaryReader.BaseStream.Position;
-
-                try
-                {
-                    if (asMessages)
-                    {
-                        if (!readMessageData(binaryReader, recordHeader.inclLen, recordHeader.tsSec, recordHeader.tsUsec, results, incompletePacketMap, false))
-                            break;
-                    }
-                    else
-                    {
+                try {
+                    if (asMessages) {
+                        if (!readMessageData(binaryReader, recordHeader.inclLen, recordHeader.tsSec, recordHeader.tsUsec, results, incompletePacketMap, false)) break;
+                    } else {
                         var packetRecord = readPacketData(binaryReader, recordHeader.inclLen, recordHeader.tsSec, recordHeader.tsUsec, curPacket, false);
-
-                        if (packetRecord == null)
-                            break;
-
+                        if (packetRecord == null) break;
                         results.Add(packetRecord);
                     }
-
                     curPacket++;
-                }
-                catch (Exception e)
-                {
+                } catch (Exception _) {
                     binaryReader.BaseStream.Position += recordHeader.inclLen - (binaryReader.BaseStream.Position - packetStartPos);
                 }
             }
@@ -170,345 +108,207 @@ namespace aclogview
             return results;
         }
 
-        private static PcapngBlockHeader readPcapngBlockHeader(BinaryReader binaryReader, int curPacket)
-        {
-            if (binaryReader.BaseStream.Length - binaryReader.BaseStream.Position < 8)
-            {
+        private static PcapngBlockHeader readPcapngBlockHeader(BinaryReader binaryReader, int curPacket) {
+            if (binaryReader.BaseStream.Length - binaryReader.BaseStream.Position < 8) {
                 throw new InvalidDataException("Stream cut short (packet " + curPacket + "), stopping read: " + (binaryReader.BaseStream.Length - binaryReader.BaseStream.Position));
             }
-
             long blockStartPos = binaryReader.BaseStream.Position;
-
-            PcapngBlockHeader blockHeader = PcapngBlockHeader.read(binaryReader);
-
-            if (blockHeader.capturedLen > 50000)
-            {
+            PcapngBlockHeader blockHeader = new PcapngBlockHeader(binaryReader);
+            if (blockHeader.capturedLen > 50000) {
                 throw new InvalidDataException("Enormous packet (packet " + curPacket + "), stopping read: " + blockHeader.capturedLen);
             }
-
             // Make sure there's enough room for an ethernet header
-            if (blockHeader.capturedLen < 14)
-            {
+            if (blockHeader.capturedLen < 14) {
                 binaryReader.BaseStream.Position += blockHeader.blockTotalLength - (binaryReader.BaseStream.Position - blockStartPos);
                 return null;
             }
-
             return blockHeader;
         }
 
-        private static List<PacketRecord> loadPcapngPacketRecords(BinaryReader binaryReader, bool asMessages, ref bool abort)
-        {
+        private static List<PacketRecord> loadPcapngPacketRecords(BinaryReader binaryReader, bool asMessages, ref bool abort) {
             List<PacketRecord> results = new List<PacketRecord>();
-
             int curPacket = 0;
-
             Dictionary<ulong, PacketRecord> incompletePacketMap = new Dictionary<ulong, PacketRecord>();
-
-            while (binaryReader.BaseStream.Position != binaryReader.BaseStream.Length)
-            {
+            while (binaryReader.BaseStream.Position != binaryReader.BaseStream.Length) {
                 if (abort)
                     break;
-
                 long blockStartPos = binaryReader.BaseStream.Position;
-
                 PcapngBlockHeader blockHeader;
-                try
-                {
+                try {
                     blockHeader = readPcapngBlockHeader(binaryReader, curPacket);
-
-                    if (blockHeader == null)
-                    {
-                        continue;
-                    }
-                }
-                catch (InvalidDataException e)
-                {
-                    break;
-                }
-
+                    if (blockHeader == null) continue;
+                } catch (InvalidDataException _) { break; }
                 long packetStartPos = binaryReader.BaseStream.Position;
-
-                try
-                {
-                    if (asMessages)
-                    {
+                try {
+                    if (asMessages) {
                         if (!readMessageData(binaryReader, blockHeader.capturedLen, blockHeader.tsLow, blockHeader.tsHigh, results, incompletePacketMap, true))
                             break;
-                    }
-                    else
-                    {
+                    } else {
                         var packetRecord = readPacketData(binaryReader, blockHeader.capturedLen, blockHeader.tsLow, blockHeader.tsHigh, curPacket, true);
-
-                        if (packetRecord == null)
-                            break;
-
+                        if (packetRecord == null) break;
                         results.Add(packetRecord);
                     }
-
                     curPacket++;
-                }
-                catch (Exception e)
-                {
+                } catch (Exception e) {
                     binaryReader.BaseStream.Position += blockHeader.capturedLen - (binaryReader.BaseStream.Position - packetStartPos);
                 }
-
                 binaryReader.BaseStream.Position += blockHeader.blockTotalLength - (binaryReader.BaseStream.Position - blockStartPos);
             }
             SendCrypto.Clear();
             RecvCrypto.Clear();
-
             return results;
         }
 
-        private static (IpHeader, bool, uint) readNetworkHeaders(BinaryReader binaryReader)
-        {
-            EthernetHeader ethernetHeader = EthernetHeader.read(binaryReader);
-
+        private static (IpHeader, bool, uint) readNetworkHeaders(BinaryReader binaryReader) {
+            EthernetHeader ethernetHeader = new EthernetHeader(binaryReader);
             // Skip non-IP packets
-            if (ethernetHeader.proto != 8)
-            {
-                throw new InvalidDataException();
-            }
-
-            IpHeader ipHeader = IpHeader.read(binaryReader);
-
+            if (ethernetHeader.proto != 8) throw new InvalidDataException();
+            IpHeader ipHeader = new IpHeader(binaryReader);
             // Skip non-UDP packets
-            if (ipHeader.proto != 17)
-            {
-                throw new InvalidDataException();
-            }
-
-            UdpHeader udpHeader = UdpHeader.read(binaryReader);
-
+            if (ipHeader.proto != 17) throw new InvalidDataException();
+            UdpHeader udpHeader = new UdpHeader(binaryReader);
             bool isSend = (udpHeader.dPort >= 9000 && udpHeader.dPort <= 10013);
             bool isRecv = (udpHeader.sPort >= 9000 && udpHeader.sPort <= 10013);
-
             uint port = 0;
-            if (isSend)
-                port = udpHeader.dPort;
-            else if (isRecv)
-                port = udpHeader.sPort;
-
+            if (isSend) port = udpHeader.dPort;
+            else if (isRecv) port = udpHeader.sPort;
             // Skip non-AC-port packets
-            if (!isSend && !isRecv)
-            {
-                throw new InvalidDataException();
-            }
-
+            if (!isSend && !isRecv) throw new InvalidDataException();
             return (ipHeader, isSend, port);
         }
 
-        private static PacketRecord readPacketData(BinaryReader binaryReader, long len, uint ts1, uint ts2, int curPacket, bool isPcapng)
-        {
+        private static PacketRecord readPacketData(BinaryReader binaryReader, long len, uint ts1, uint ts2, int curPacket, bool isPcapng) {
             // Begin reading headers
             long packetStartPos = binaryReader.BaseStream.Position;
-
             (IpHeader ipHeader, bool isSend, uint port) = readNetworkHeaders(binaryReader);
-
             long headersSize = binaryReader.BaseStream.Position - packetStartPos;
-
             // Begin reading non-header packet content
             StringBuilder packetHeadersStr = new StringBuilder();
             StringBuilder packetTypeStr = new StringBuilder();
-
             PacketRecord packet = new PacketRecord();
-
             packet.index = curPacket;
-
             packet.ipHeader = ipHeader;
             packet.ServerPort = port;
-
             packet.isSend = isSend;
-
-            if (isPcapng)
-            {
+            if (isPcapng) {
                 packet.tsLow = ts1;
                 packet.tsHigh = ts2;
-            }
-            else
-            {
+            } else {
                 packet.tsSec = ts1;
                 packet.tsUsec = ts2;
             }
-
             packet.extraInfo = "";
             packet.data = binaryReader.ReadBytes((int)(len - headersSize));
-			using (BinaryReader packetReader = new BinaryReader(new MemoryStream(packet.data)))
-			{
-				try
-				{
-					ProtoHeader pHeader = new ProtoHeader(packetReader);
-					
-					packet.Seq = pHeader.seqID_;
-					packet.Iteration = pHeader.iteration_;
+            using (BinaryReader packetReader = new BinaryReader(new MemoryStream(packet.data))) {
+                try {
+                    ProtoHeader pHeader = new ProtoHeader(packetReader);
+                    packet.Seq = pHeader.seqID_;
+                    packet.Iteration = pHeader.iteration_;
                     packet.RecID = pHeader.recID_;
-
-					packet.optionalHeadersLen = readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packet.data, isSend);
-
-					if (packetReader.BaseStream.Position == packetReader.BaseStream.Length)
-						packetTypeStr.Append("<Header Only>");
-
-					uint HAS_FRAGS_MASK = 0x4; // See SharedNet::SplitPacketData
-
-					if ((pHeader.header_ & HAS_FRAGS_MASK) != 0)
-					{
-						while (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
-						{
-							if (packetTypeStr.Length != 0)
-								packetTypeStr.Append(" + ");
-
-							BlobFrag newFrag = readFragment(packetReader);
-							packet.frags.Add(newFrag);
-
-							if (newFrag.memberHeader_.blobNum != 0)
-							{
-								packetTypeStr.Append($"FragData[{newFrag.memberHeader_.blobNum}]");
-							}
-							else
-							{
-								using (BinaryReader fragDataReader = new BinaryReader(new MemoryStream(newFrag.dat_)))
-								{
-									PacketOpcode opcode = Util.readOpcode(fragDataReader);
-									packet.opcodes.Add(opcode);
-									packetTypeStr.Append(opcode);
-									packet.Queue = newFrag.memberHeader_.queueID;
-								}
-							}
-						}
-					}
-
-					if (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
-						packet.extraInfo = "Didnt read entire packet! " + packet.extraInfo;
-				}
-				catch (OutOfMemoryException e)
-				{
-					//MessageBox.Show("Out of memory (packet " + curPacket + "), stopping read: " + e);
-					return null;
-				}
-				catch (Exception e)
-				{
-					packet.extraInfo += "EXCEPTION: " + e.Message + " " + e.StackTrace;
-				}
-			}
+                    packet.optionalHeadersLen = readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packet.data, isSend);
+                    if (packetReader.BaseStream.Position == packetReader.BaseStream.Length)
+                        packetTypeStr.Append("<Header Only>");
+                    uint HAS_FRAGS_MASK = 0x4; // See SharedNet::SplitPacketData
+                    if ((pHeader.header_ & HAS_FRAGS_MASK) != 0) {
+                        while (packetReader.BaseStream.Position != packetReader.BaseStream.Length) {
+                            if (packetTypeStr.Length != 0)
+                                packetTypeStr.Append(" + ");
+                            BlobFrag newFrag = new BlobFrag(packetReader);
+                            packet.frags.Add(newFrag);
+                            if (newFrag.memberHeader_.blobNum != 0) {
+                                packetTypeStr.Append($"FragData[{newFrag.memberHeader_.blobNum}]");
+                            } else {
+                                using (BinaryReader fragDataReader = new BinaryReader(new MemoryStream(newFrag.dat_))) {
+                                    PacketOpcode opcode = Util.readOpcode(fragDataReader);
+                                    packet.opcodes.Add(opcode);
+                                    packetTypeStr.Append(opcode);
+                                    packet.Queue = newFrag.memberHeader_.queueID;
+                                }
+                            }
+                        }
+                    }
+                    if (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
+                        packet.extraInfo = "Didnt read entire packet! " + packet.extraInfo;
+                } catch (OutOfMemoryException _) {
+                    //MessageBox.Show("Out of memory (packet " + curPacket + "), stopping read: " + e);
+                    return null;
+                } catch (Exception e) {
+                    packet.extraInfo += "EXCEPTION: " + e.Message + " " + e.StackTrace;
+                }
+            }
             packet.packetHeadersStr = packetHeadersStr.ToString();
             packet.packetTypeStr = packetTypeStr.ToString();
-
             return packet;
         }
 
-        private static bool readMessageData(BinaryReader binaryReader, long len, uint ts1, uint ts2, List<PacketRecord> results, Dictionary<ulong, PacketRecord> incompletePacketMap, bool isPcapng)
-        {
+        private static bool readMessageData(BinaryReader binaryReader, long len, uint ts1, uint ts2, List<PacketRecord> results, Dictionary<ulong, PacketRecord> incompletePacketMap, bool isPcapng) {
             // Begin reading headers
             long packetStartPos = binaryReader.BaseStream.Position;
-
             (IpHeader ipHeader, bool isSend, uint port) = readNetworkHeaders(binaryReader);
-
             long headersSize = binaryReader.BaseStream.Position - packetStartPos;
-
             // Begin reading non-header packet content
             StringBuilder packetHeadersStr = new StringBuilder();
             StringBuilder packetTypeStr = new StringBuilder();
-
             PacketRecord packet = null;
             byte[] packetData = binaryReader.ReadBytes((int)(len - headersSize));
-			using (BinaryReader packetReader = new BinaryReader(new MemoryStream(packetData)))
-			{
-				try
-				{
-					ProtoHeader pHeader = new ProtoHeader(packetReader);
-
-					uint HAS_FRAGS_MASK = 0x4; // See SharedNet::SplitPacketData
-
-					if ((pHeader.header_ & HAS_FRAGS_MASK) != 0)
-					{
-						readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packetData, isSend);
-
-						while (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
-						{
-							BlobFrag newFrag = readFragment(packetReader);
-
-							ulong blobID = newFrag.memberHeader_.blobID;
-							if (incompletePacketMap.ContainsKey(blobID))
-							{
-								packet = incompletePacketMap[newFrag.memberHeader_.blobID];
-							}
-							else
-							{
-								packet = new PacketRecord();
-								incompletePacketMap.Add(blobID, packet);
-								packet.Seq = pHeader.seqID_;
-								packet.Queue = newFrag.memberHeader_.queueID;
+            using (BinaryReader packetReader = new BinaryReader(new MemoryStream(packetData))) {
+                try {
+                    ProtoHeader pHeader = new ProtoHeader(packetReader);
+                    uint HAS_FRAGS_MASK = 0x4; // See SharedNet::SplitPacketData
+                    if ((pHeader.header_ & HAS_FRAGS_MASK) != 0) {
+                        readOptionalHeaders(pHeader, packetHeadersStr, packetReader, packetData, isSend);
+                        while (packetReader.BaseStream.Position != packetReader.BaseStream.Length) {
+                            BlobFrag newFrag = new BlobFrag(packetReader);
+                            ulong blobID = newFrag.memberHeader_.blobID;
+                            if (incompletePacketMap.ContainsKey(blobID)) {
+                                packet = incompletePacketMap[newFrag.memberHeader_.blobID];
+                            } else {
+                                packet = new PacketRecord();
+                                incompletePacketMap.Add(blobID, packet);
+                                packet.Seq = pHeader.seqID_;
+                                packet.Queue = newFrag.memberHeader_.queueID;
                                 packet.Iteration = pHeader.iteration_;
                                 packet.RecID = pHeader.recID_;
                             }
-
-							if (newFrag.memberHeader_.blobNum == 0)
-                            {
+                            if (newFrag.memberHeader_.blobNum == 0) {
                                 packet.ipHeader = ipHeader;
                                 packet.ServerPort = port;
                                 packet.isSend = isSend;
-
-							    if (isPcapng)
-							    {
-							        packet.tsLow = ts1;
-							        packet.tsHigh = ts2;
-							    }
-							    else
-							    {
-							        packet.tsSec = ts1;
-							        packet.tsUsec = ts2;
+                                if (isPcapng) {
+                                    packet.tsLow = ts1;
+                                    packet.tsHigh = ts2;
+                                } else {
+                                    packet.tsSec = ts1;
+                                    packet.tsUsec = ts2;
                                 }
-
-								packet.extraInfo = "";
-								packet.Seq = pHeader.seqID_;
-								packet.Queue = newFrag.memberHeader_.queueID;
+                                packet.extraInfo = "";
+                                packet.Seq = pHeader.seqID_;
+                                packet.Queue = newFrag.memberHeader_.queueID;
                                 packet.Iteration = pHeader.iteration_;
                                 packet.RecID = pHeader.recID_;
-
-                                using (BinaryReader fragDataReader = new BinaryReader(new MemoryStream(newFrag.dat_)))
-								{
-									PacketOpcode opcode = Util.readOpcode(fragDataReader);
-									packet.opcodes.Add(opcode);
-									packet.packetTypeStr = opcode.ToString();
-								}
-							}
-
-							packet.packetHeadersStr += packetHeadersStr.ToString();
-
-							packet.frags.Add(newFrag);
-
-							if (addPacketIfFinished(results, packet))
-							{
-								incompletePacketMap.Remove(blobID);
-							}
-						}
-
-						if (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
-							packet.extraInfo = "Didnt read entire packet! " + packet.extraInfo;
-					}
-				}
-				catch (OutOfMemoryException e)
-				{
-					//MessageBox.Show("Out of memory (packet " + curPacket + "), stopping read: " + e);
-					return false;
-				}
-				catch (Exception e)
-				{
-					packet.extraInfo += "EXCEPTION: " + e.Message + " " + e.StackTrace;
-				}
-			}
+                                using (BinaryReader fragDataReader = new BinaryReader(new MemoryStream(newFrag.dat_))) {
+                                    PacketOpcode opcode = Util.readOpcode(fragDataReader);
+                                    packet.opcodes.Add(opcode);
+                                    packet.packetTypeStr = opcode.ToString();
+                                }
+                            }
+                            packet.packetHeadersStr += packetHeadersStr.ToString();
+                            packet.frags.Add(newFrag);
+                            if (addPacketIfFinished(results, packet)) {
+                                incompletePacketMap.Remove(blobID);
+                            }
+                        }
+                        if (packetReader.BaseStream.Position != packetReader.BaseStream.Length)
+                            packet.extraInfo = "Didnt read entire packet! " + packet.extraInfo;
+                    }
+                } catch (OutOfMemoryException _) {
+                    return false;
+                } catch (Exception e) {
+                    packet.extraInfo += "EXCEPTION: " + e.Message + " " + e.StackTrace;
+                }
+            }
             return true;
         }
-
-        private static BlobFrag readFragment(BinaryReader packetReader)
-        {
-            BlobFrag newFrag = new BlobFrag();
-            newFrag.memberHeader_ = BlobFragHeader_t.read(packetReader);
-            newFrag.dat_ = packetReader.ReadBytes(newFrag.memberHeader_.blobFragSize - 16); // 16 == size of frag header
-
-            return newFrag;
-        }
-
         [Flags]
         public enum ACEPacketHeaderFlags : uint  //ACE
         {
@@ -539,8 +339,7 @@ namespace aclogview
 
         public static Dictionary<ushort, ICryptoSystem> SendCrypto = new Dictionary<ushort, ICryptoSystem>();
         public static Dictionary<ushort, ICryptoSystem> RecvCrypto = new Dictionary<ushort, ICryptoSystem>();
-        private static int readOptionalHeaders(ProtoHeader pHeader, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend)
-        {
+        private static int readOptionalHeaders(ProtoHeader pHeader, StringBuilder packetHeadersStr, BinaryReader packetReader, byte[] originalData, bool isSend) {
             long readStartPos = packetReader.BaseStream.Position;
             ACEPacketHeaderFlags header = (ACEPacketHeaderFlags)pHeader.header_;
 
@@ -561,7 +360,8 @@ namespace aclogview
                 short LogonServerAddrsin_family = packetReader.ReadInt16();
                 ushort LogonServerAddrsin_port = packetReader.ReadUInt16();
                 byte[] LogonServerAddrsin_addr = packetReader.ReadBytes(4);
-                /*byte[] LogonServerAddrsin_zero =*/ packetReader.ReadBytes(8);
+                /*byte[] LogonServerAddrsin_zero =*/
+                packetReader.ReadBytes(8);
                 result.Add($"LogonServerAddr({LogonServerAddrsin_family}::{LogonServerAddrsin_addr[0]}.{LogonServerAddrsin_addr[1]}.{LogonServerAddrsin_addr[2]}.{LogonServerAddrsin_addr[3]}:{LogonServerAddrsin_port})");
             }
 
@@ -631,11 +431,13 @@ namespace aclogview
             if ((header & ACEPacketHeaderFlags.ConnectRequest) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 32, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double ConnectRequestServerTime = packetReader.ReadDouble();
-                /* ulong ConnectRequestCookie = */ packetReader.ReadUInt64();
+                /* ulong ConnectRequestCookie = */
+                packetReader.ReadUInt64();
                 uint ConnectRequestNetID = packetReader.ReadUInt32();
                 uint ConnectRequestIncomingSeed = packetReader.ReadUInt32();
                 uint ConnectRequestOutgoingSeed = packetReader.ReadUInt32();
-                /*uint ConnectRequestunk =*/ packetReader.ReadUInt32();
+                /*uint ConnectRequestunk =*/
+                packetReader.ReadUInt32();
                 if (RecvCrypto.ContainsKey(pHeader.recID_)) {
                     result.Add($"Recv Crypto reset {pHeader.recID_}");
                     RecvCrypto.Remove(pHeader.recID_); // Hello GC!
@@ -644,17 +446,18 @@ namespace aclogview
                     result.Add($"Crypto reset {ConnectRequestNetID}");
                     SendCrypto.Remove((ushort)ConnectRequestNetID); // Hello GC!
                 }
-                RecvCrypto.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
+                //RecvCrypto.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
                 //RecvCrypto.Add(pHeader.recID_, new CryptoSystem(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
                 //RecvCrypto.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand));
-                //RecvCrypto.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
+                RecvCrypto.Add(pHeader.recID_, new CryptoSystem2(ConnectRequestIncomingSeed, ISAACProvider.Rand2)); SendCrypto.Add((ushort)ConnectRequestNetID, new CryptoSystem2(ConnectRequestOutgoingSeed, ISAACProvider.Rand2));
 
-                result.Add($"ConnectRequest(rec:{pHeader.recID_},time:{Math.Round(ConnectRequestServerTime,5)},net:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
+                result.Add($"ConnectRequest(rec:{pHeader.recID_},time:{Math.Round(ConnectRequestServerTime, 5)},net:{ConnectRequestNetID},sendseed:0x{ConnectRequestIncomingSeed:X8},recvseed:0x{ConnectRequestOutgoingSeed:X8})");
             }
 
             if ((header & ACEPacketHeaderFlags.ConnectResponse) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
-                /* ulong ConnectResponseCookie = */ packetReader.ReadUInt64();
+                /* ulong ConnectResponseCookie = */
+                packetReader.ReadUInt64();
                 result.Add($"ConnectResponse");
             }
 
@@ -682,20 +485,20 @@ namespace aclogview
             if ((header & ACEPacketHeaderFlags.TIME) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 double m_time = packetReader.ReadDouble();
-                result.Add($"TIME({Math.Round(m_time,5)})");
+                result.Add($"TIME({Math.Round(m_time, 5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PING) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 4, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float m_LocalTime = packetReader.ReadSingle();
-                result.Add($"PING({Math.Round(m_LocalTime,5)})");
+                result.Add($"PING({Math.Round(m_LocalTime, 5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.PONG) != 0) {
                 pHeader.payloadChecksum += Crypto.Hash32(originalData, 8, 0x14 + (int)(packetReader.BaseStream.Position - readStartPos));
                 float LocalTime = packetReader.ReadSingle();
                 float HoldingTime = packetReader.ReadSingle();
-                result.Add($"PONG({Math.Round(LocalTime,5)} ++ {Math.Round(HoldingTime,5)})");
+                result.Add($"PONG({Math.Round(LocalTime, 5)} ++ {Math.Round(HoldingTime, 5)})");
             }
 
             if ((header & ACEPacketHeaderFlags.Flow) != 0) {
@@ -741,7 +544,4 @@ namespace aclogview
         }
 
     }
-
-
-
 }

@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 class PcapHeader {
     public uint magicNumber;
@@ -14,16 +9,14 @@ class PcapHeader {
     public uint snapLen;
     public uint network;
 
-    public static PcapHeader read(BinaryReader binaryReader) {
-        PcapHeader newObj = new PcapHeader();
-        newObj.magicNumber = binaryReader.ReadUInt32();
-        newObj.versionMajor = binaryReader.ReadUInt16();
-        newObj.versionMinor = binaryReader.ReadUInt16();
-        newObj.thisZone = binaryReader.ReadUInt32();
-        newObj.sigFigs = binaryReader.ReadUInt32();
-        newObj.snapLen = binaryReader.ReadUInt32();
-        newObj.network = binaryReader.ReadUInt32();
-        return newObj;
+    public PcapHeader(BinaryReader binaryReader) {
+        magicNumber = binaryReader.ReadUInt32();
+        versionMajor = binaryReader.ReadUInt16();
+        versionMinor = binaryReader.ReadUInt16();
+        thisZone = binaryReader.ReadUInt32();
+        sigFigs = binaryReader.ReadUInt32();
+        snapLen = binaryReader.ReadUInt32();
+        network = binaryReader.ReadUInt32();
     }
 }
 
@@ -33,13 +26,11 @@ class PcapRecordHeader {
     public uint inclLen;
     public uint origLen;
 
-    public static PcapRecordHeader read(BinaryReader binaryReader) {
-        PcapRecordHeader newObj = new PcapRecordHeader();
-        newObj.tsSec = binaryReader.ReadUInt32();
-        newObj.tsUsec = binaryReader.ReadUInt32();
-        newObj.inclLen = binaryReader.ReadUInt32();
-        newObj.origLen = binaryReader.ReadUInt32();
-        return newObj;
+    public PcapRecordHeader(BinaryReader binaryReader) {
+        tsSec = binaryReader.ReadUInt32();
+        tsUsec = binaryReader.ReadUInt32();
+        inclLen = binaryReader.ReadUInt32();
+        origLen = binaryReader.ReadUInt32();
     }
 }
 
@@ -52,26 +43,20 @@ class PcapngBlockHeader {
     public uint capturedLen;
     public uint packetLen;
 
-    public static PcapngBlockHeader read(BinaryReader binaryReader) {
-        PcapngBlockHeader newObj = new PcapngBlockHeader();
+    public PcapngBlockHeader(BinaryReader binaryReader) {
 
-        newObj.blockType = binaryReader.ReadUInt32();
-        newObj.blockTotalLength = binaryReader.ReadUInt32();
-
-        uint tsLow = 0;
-        uint capturedLen = 0;
-        if (newObj.blockType == 6) {
-            newObj.interfaceID = binaryReader.ReadUInt32();
-            newObj.tsHigh = binaryReader.ReadUInt32();
-            newObj.tsLow = binaryReader.ReadUInt32();
-            newObj.capturedLen = binaryReader.ReadUInt32();
-            newObj.packetLen = binaryReader.ReadUInt32();
-        } else if (newObj.blockType == 3) {
-            newObj.packetLen = binaryReader.ReadUInt32();
-            newObj.capturedLen = newObj.blockTotalLength - 16;
+        blockType = binaryReader.ReadUInt32();
+        blockTotalLength = binaryReader.ReadUInt32();
+        if (blockType == 6) {
+            interfaceID = binaryReader.ReadUInt32();
+            tsHigh = binaryReader.ReadUInt32();
+            tsLow = binaryReader.ReadUInt32();
+            capturedLen = binaryReader.ReadUInt32();
+            packetLen = binaryReader.ReadUInt32();
+        } else if (blockType == 3) {
+            packetLen = binaryReader.ReadUInt32();
+            capturedLen = blockTotalLength - 16;
         }
-
-        return newObj;
     }
 }
 
@@ -80,22 +65,18 @@ class EthernetHeader {
     public byte[] source;
     public ushort proto;
 
-    public static EthernetHeader read(BinaryReader binaryReader) {
-        EthernetHeader newObj = new EthernetHeader();
-        newObj.dest = binaryReader.ReadBytes(6);
-        newObj.source = binaryReader.ReadBytes(6);
-        newObj.proto = binaryReader.ReadUInt16();
-        return newObj;
+    public EthernetHeader(BinaryReader binaryReader) {
+        dest = binaryReader.ReadBytes(6);
+        source = binaryReader.ReadBytes(6);
+        proto = binaryReader.ReadUInt16();
     }
 }
 
 class IpAddress {
     public byte[] bytes;
 
-    public static IpAddress read(BinaryReader binaryReader) {
-        IpAddress newObj = new IpAddress();
-        newObj.bytes = binaryReader.ReadBytes(4);
-        return newObj;
+    public IpAddress(BinaryReader binaryReader) {
+        bytes = binaryReader.ReadBytes(4);
     }
 
     public override string ToString()
@@ -119,19 +100,17 @@ class IpHeader {
     public IpAddress sAddr;
     public IpAddress dAddr;
 
-    public static IpHeader read(BinaryReader binaryReader) {
-        IpHeader newObj = new IpHeader();
-        newObj.verIhl = binaryReader.ReadByte();
-        newObj.tos = binaryReader.ReadByte();
-        newObj.tLen = binaryReader.ReadUInt16();
-        newObj.identification = binaryReader.ReadUInt16();
-        newObj.flagsFo = binaryReader.ReadUInt16();
-        newObj.ttl = binaryReader.ReadByte();
-        newObj.proto = binaryReader.ReadByte();
-        newObj.crc = binaryReader.ReadUInt16();
-        newObj.sAddr = IpAddress.read(binaryReader);
-        newObj.dAddr = IpAddress.read(binaryReader);
-        return newObj;
+    public IpHeader(BinaryReader binaryReader) {
+        verIhl = binaryReader.ReadByte();
+        tos = binaryReader.ReadByte();
+        tLen = binaryReader.ReadUInt16();
+        identification = binaryReader.ReadUInt16();
+        flagsFo = binaryReader.ReadUInt16();
+        ttl = binaryReader.ReadByte();
+        proto = binaryReader.ReadByte();
+        crc = binaryReader.ReadUInt16();
+        sAddr = new IpAddress(binaryReader);
+        dAddr = new IpAddress(binaryReader);
     }
 }
 
@@ -141,12 +120,10 @@ class UdpHeader {
     public ushort len;
     public ushort crc;
 
-    public static UdpHeader read(BinaryReader binaryReader) {
-        UdpHeader newObj = new UdpHeader();
-        newObj.sPort = Util.byteSwapped(binaryReader.ReadUInt16());
-        newObj.dPort = Util.byteSwapped(binaryReader.ReadUInt16());
-        newObj.len = Util.byteSwapped(binaryReader.ReadUInt16());
-        newObj.crc = Util.byteSwapped(binaryReader.ReadUInt16());
-        return newObj;
+    public UdpHeader(BinaryReader binaryReader) {
+        sPort = Util.byteSwapped(binaryReader.ReadUInt16());
+        dPort = Util.byteSwapped(binaryReader.ReadUInt16());
+        len = Util.byteSwapped(binaryReader.ReadUInt16());
+        crc = Util.byteSwapped(binaryReader.ReadUInt16());
     }
 }

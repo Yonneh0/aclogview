@@ -133,11 +133,11 @@ public class Util {
         PacketOpcode opcode = 0;
         opcode = (PacketOpcode)fragDataReader.ReadUInt32();
         if (opcode == PacketOpcode.WEENIE_ORDERED_EVENT) {
-            WOrderHdr orderHeader = WOrderHdr.read(fragDataReader);
+            WOrderHdr orderHeader = new WOrderHdr(fragDataReader);
             opcode = (PacketOpcode)fragDataReader.ReadUInt32();
         }
         if (opcode == PacketOpcode.ORDERED_EVENT) {
-            OrderHdr orderHeader = OrderHdr.read(fragDataReader);
+            OrderHdr orderHeader = new OrderHdr(fragDataReader);
             opcode = (PacketOpcode)fragDataReader.ReadUInt32();
         }
 
@@ -185,25 +185,14 @@ public class BlobFrag {
     public BlobFragHeader_t memberHeader_;
     public byte[] dat_;
     //public NetBlob myBlob_;
-}
 
-public class NetPacket {
-    public enum Flags__guessedname {
-        npfChecksumEncrypted = (1 << 0),
-        npfHasTimeSensitiveHeaders = (1 << 1),
-        npfHasSequencedData = (1 << 2),
-        npfHasHighPriorityHeaders = (1 << 3)
+    public BlobFrag(BinaryReader packetReader) {
+        try {
+            memberHeader_ = new BlobFragHeader_t(packetReader);
+            dat_ = packetReader.ReadBytes(memberHeader_.blobFragSize - 16); // 16 == size of frag header
+        } catch { }
     }
 
-    public List<COptionalHeader> specialFragList_ = new List<COptionalHeader>();
-    public List<BlobFrag> fragList_ = new List<BlobFrag>();
-    public ushort recipient_;
-    public uint realPriority_;
-    public uint size_;
-    public uint seqNum_;
-    public uint cryptoKey_;
-    public uint checksum_;
-    public uint flags_;
 }
 
 public class PStringChar {
